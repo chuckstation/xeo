@@ -152,7 +152,6 @@ set(XE_BASE_PLATFORM_SRCS
   ${XE_SRC}/xenia/base/filesystem_android.cc
   ${XE_SRC}/xenia/base/filesystem_posix.cc
   ${XE_SRC}/xenia/base/main_android.cc
-  ${XE_SRC}/xenia/base/main_init_android.cc
   ${XE_SRC}/xenia/base/mapped_memory_posix.cc
   ${XE_SRC}/xenia/base/memory_posix.cc
   ${XE_SRC}/xenia/base/system_android.cc
