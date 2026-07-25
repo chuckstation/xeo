@@ -16,14 +16,14 @@ android {
         minSdk 24
         targetSdk 34
         versionCode 3
-        versionName "0.4.0-alpha"
+        versionName "0.5.0-beta"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
 
         externalNativeBuild {
             cmake {
-                // C++17, exceptions and RTTI required by Xenia
-                cppFlags "-std=c++17 -frtti -fexceptions"
+                // C++20, exceptions and RTTI required by Xenia
+                cppFlags "-std=c++20 -frtti -fexceptions"
                 // STL: static c++ runtime so we don't ship libc++_shared.so
                 arguments(
                     "-DANDROID_STL=c++_static",
