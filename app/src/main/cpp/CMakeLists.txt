@@ -20,6 +20,23 @@ message(STATUS "XENIA_ROOT : ${XENIA_ROOT}")
 message(STATUS "XE_SRC     : ${XE_SRC}")
 message(STATUS "XE_3P      : ${XE_3P}")
 
+# Detect capabilities dynamically from upstream headers to support multiple versions of xenia-upstream
+if(EXISTS "${XE_SRC}/xenia/base/threading.h")
+  file(READ "${XE_SRC}/xenia/base/threading.h" THREADING_H_CONTENT)
+  if(THREADING_H_CONTENT MATCHES "EventInfo")
+    add_compile_definitions(XE_HAS_EVENT_INFO=1)
+    message(STATUS "Detected EventInfo in threading.h, defining XE_HAS_EVENT_INFO=1")
+  endif()
+endif()
+
+if(EXISTS "${XE_SRC}/xenia/base/logging.h")
+  file(READ "${XE_SRC}/xenia/base/logging.h" LOGGING_H_CONTENT)
+  if(LOGGING_H_CONTENT MATCHES "log_mask")
+    add_compile_definitions(XE_LOGGING_HAS_LOG_MASK=1)
+    message(STATUS "Detected log_mask in logging.h, defining XE_LOGGING_HAS_LOG_MASK=1")
+  endif()
+endif()
+
 # ---------------------------------------------------------------------------
 # Compiler flags
 # ---------------------------------------------------------------------------
