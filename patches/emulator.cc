@@ -36,7 +36,9 @@
 #include "xenia/hid/input_system.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/user_module.h"
+#ifdef XE_HAS_GAMEINFO_UTILS
 #include "xenia/kernel/util/gameinfo_utils.h"
+#endif
 #include "xenia/kernel/util/xdbf_utils.h"
 #include "xenia/kernel/xam/xam_module.h"
 #include "xenia/kernel/xbdm/xbdm_module.h"
@@ -695,6 +697,7 @@ void Emulator::RemoveGameConfigLoadCallback(GameConfigLoadCallback* callback) {
   game_config_load_callbacks_.erase(it);
 }
 
+#ifdef XE_HAS_GAMEINFO_UTILS
 std::string Emulator::FindLaunchModule() {
   std::string path("game:\\");
 
@@ -732,6 +735,43 @@ std::string Emulator::FindLaunchModule() {
 
   return path + default_module;
 }
+#else
+std::string Emulator::FindLaunchModule() {
+  std::string path(fmt::format("{}\\", kDefaultGameSymbolicLink));
+
+  auto xam = kernel_state()->GetKernelModule<kernel::xam::XamModule>("xam.xex");
+
+  if (!xam->loader_data().launch_path.empty()) {
+    std::string symbolic_link_path;
+    if (kernel_state_->file_system()->FindSymbolicLink(kDefaultGameSymbolicLink,
+                                                       symbolic_link_path)) {
+      std::filesystem::path file_path = symbolic_link_path;
+      // Remove previous symbolic links.
+      // Some titles can provide root within specific directory.
+      kernel_state_->file_system()->UnregisterSymbolicLink(
+          kDefaultPartitionSymbolicLink);
+      kernel_state_->file_system()->UnregisterSymbolicLink(
+          kDefaultGameSymbolicLink);
+
+      file_path /= std::filesystem::path(xam->loader_data().launch_path);
+
+      kernel_state_->file_system()->RegisterSymbolicLink(
+          kDefaultPartitionSymbolicLink,
+          xe::path_to_utf8(file_path.parent_path()));
+      kernel_state_->file_system()->RegisterSymbolicLink(
+          kDefaultGameSymbolicLink, xe::path_to_utf8(file_path.parent_path()));
+
+      return xe::path_to_utf8(file_path);
+    }
+  }
+
+  if (!cvars::launch_module.empty()) {
+    return path + cvars::launch_module;
+  }
+
+  return path + "default.xex";
+}
+#endif
 
 static std::string format_version(xex2_version version) {
   // fmt::format doesn't like bit fields

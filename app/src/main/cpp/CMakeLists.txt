@@ -37,6 +37,11 @@ if(EXISTS "${XE_SRC}/xenia/base/logging.h")
   endif()
 endif()
 
+if(EXISTS "${XE_SRC}/xenia/kernel/util/gameinfo_utils.h")
+  add_compile_definitions(XE_HAS_GAMEINFO_UTILS=1)
+  message(STATUS "Detected gameinfo_utils.h, defining XE_HAS_GAMEINFO_UTILS=1")
+endif()
+
 # ---------------------------------------------------------------------------
 # Compiler flags
 # ---------------------------------------------------------------------------
