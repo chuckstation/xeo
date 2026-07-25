@@ -36,9 +36,9 @@ jobs:
         run: |
           git clone \
             --depth 1 \
-            --branch master \
+            --branch canary_experimental \
             --single-branch \
-            https://github.com/xenia-project/xenia.git \
+            https://github.com/xenia-canary/xenia-canary.git \
             xenia-upstream
           echo "xenia-upstream: $(git -C xenia-upstream rev-parse HEAD)"
 

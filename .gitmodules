@@ -1,7 +1,8 @@
 # xenia-upstream is cloned directly by CI and setup.sh.
 # For a proper git submodule setup run:
-#   git submodule add -b master https://github.com/xenia-project/xenia.git xenia-upstream
+#   git submodule add -b canary_experimental https://github.com/xenia-canary/xenia-canary.git xenia-upstream
 [submodule "xenia-upstream"]
 	path = xenia-upstream
-	url = https://github.com/xenia-project/xenia.git
-	branch = master
+	url = https://github.com/xenia-canary/xenia-canary.git
+	branch = canary_experimental
+	ignore = all

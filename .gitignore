@@ -33,3 +33,6 @@ Thumbs.db
 # src/ and third_party/ are symlinks created by setup.sh; ignore them
 /src
 /third_party
+
+# Build logs
+*.log

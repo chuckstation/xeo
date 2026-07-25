@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.22.1)
 project(xenia-android CXX C ASM)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
@@ -137,6 +137,10 @@ list(FILTER XE_BASE_SRCS EXCLUDE REGEX "_(win|mac|gtk|linux|gnulinux)\\.cc$")
 list(FILTER XE_BASE_SRCS EXCLUDE REGEX "test|_demo|debugging_mac|console_app_main")
 if(NOT XE_ARCH_AMD64_VAL)
   list(FILTER XE_BASE_SRCS EXCLUDE REGEX "_x64\\.cc$")
+  list(FILTER XE_BASE_SRCS EXCLUDE REGEX "_amd64\\.cc$")
+endif()
+if(NOT XE_ARCH_ARM64_VAL)
+  list(FILTER XE_BASE_SRCS EXCLUDE REGEX "_arm64\\.cc$")
 endif()
 # Add POSIX + Android platform files explicitly
 set(XE_BASE_PLATFORM_SRCS
@@ -148,7 +152,6 @@ set(XE_BASE_PLATFORM_SRCS
   ${XE_SRC}/xenia/base/filesystem_android.cc
   ${XE_SRC}/xenia/base/filesystem_posix.cc
   ${XE_SRC}/xenia/base/main_android.cc
-  ${XE_SRC}/xenia/base/main_init_android.cc
   ${XE_SRC}/xenia/base/mapped_memory_posix.cc
   ${XE_SRC}/xenia/base/memory_posix.cc
   ${XE_SRC}/xenia/base/system_android.cc

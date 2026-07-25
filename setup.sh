@@ -11,8 +11,8 @@ UPSTREAM="${REPO}/xenia-upstream"
 
 if [[ ! -d "${UPSTREAM}/src" ]]; then
   echo "xenia-upstream not found. Cloning..."
-  git clone --depth 1 --branch master \
-    https://github.com/xenia-project/xenia.git \
+  git clone --depth 1 --branch canary_experimental \
+    https://github.com/xenia-canary/xenia-canary.git \
     "${UPSTREAM}"
 fi
 

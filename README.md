@@ -1,8 +1,8 @@
 # xenia-android
 
-Android port of [Xenia](https://github.com/xenia-project/xenia), an Xbox 360 emulator.
+Android port of [Xenia Canary](https://github.com/xenia-canary/xenia-canary), an Xbox 360 emulator.
 
-**Status:** Work in progress. Requires Vulkan 1.0 (Android 7.0+, ARM64 or x86_64).
+**Status:** Beta (0.5.0-beta). Requires Vulkan 1.0 (Android 7.0+, ARM64 or x86_64).
 
 [![Android CI](https://github.com/xenia-android/xenia-android/actions/workflows/ci.yml/badge.svg)](https://github.com/xenia-android/xenia-android/actions/workflows/ci.yml)
 
@@ -28,4 +28,4 @@ bash setup.sh
 ## License
 
 BSD 3-Clause. See [LICENSE](LICENSE).  
-Xenia upstream: [BSD 3-Clause](https://github.com/xenia-project/xenia/blob/master/LICENSE).
+Xenia Canary upstream: [BSD 3-Clause](https://github.com/xenia-canary/xenia-canary/blob/canary_experimental/LICENSE).
