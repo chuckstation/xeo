@@ -9,20 +9,17 @@
 
 #include "xenia/kernel/user_module.h"
 
+#include "xenia/base/byte_stream.h"
+#include "xenia/base/logging.h"
+#include "xenia/base/xxhash.h"
+#include "xenia/cpu/elf_module.h"
+#include "xenia/emulator.h"
+
 #include <vector>
 #include <filesystem>
 #include <algorithm>
 #include <fstream>
 #include "third_party/cpptoml/include/cpptoml.h"
-
-#include "xenia/base/byte_stream.h"
-#include "xenia/base/logging.h"
-#include "xenia/cpu/elf_module.h"
-#include "xenia/cpu/processor.h"
-#include "xenia/cpu/xex_module.h"
-#include "xenia/emulator.h"
-#include "xenia/kernel/xfile.h"
-#include "xenia/kernel/xthread.h"
 #include "xenia/config.h"
 
 #include "third_party/fmt/include/fmt/format.h"
@@ -32,33 +29,6 @@ DECLARE_path(storage_root);
 
 namespace xe {
 namespace kernel {
-
-UserModule::UserModule(KernelState* kernel_state)
-    : XModule(kernel_state, ModuleType::kUserModule) {}
-
-UserModule::~UserModule() { Unload(); }
-
-uint32_t UserModule::title_id() const {
-  if (module_format_ != kModuleFormatXex) {
-    return 0;
-  }
-  auto header = xex_header();
-  for (uint32_t i = 0; i < header->header_count; i++) {
-    auto& opt_header = header->headers[i];
-    if (opt_header.key == XEX_HEADER_EXECUTION_INFO) {
-      auto opt_header_ptr =
-          reinterpret_cast<const uint8_t*>(header) + opt_header.offset;
-      auto opt_exec_info =
-          reinterpret_cast<const xex2_opt_execution_info*>(opt_header_ptr);
-      return static_cast<uint32_t>(opt_exec_info->title_id);
-    }
-  }
-  return 0;
-}
-
-// -----------------------------------------------------------------------------
-// Xenia Game Patches (.patch.toml) Support
-// -----------------------------------------------------------------------------
 
 template <typename T>
 static void WriteGuestMemory(xe::Memory* memory, uint32_t address, T value) {
@@ -237,7 +207,62 @@ void UserModule::ApplyGamePatches() {
   }
 }
 
-// -----------------------------------------------------------------------------
+UserModule::UserModule(KernelState* kernel_state)
+    : XModule(kernel_state, ModuleType::kUserModule) {}
+
+UserModule::~UserModule() { Unload(); }
+
+uint32_t UserModule::title_id() const {
+  if (module_format_ != kModuleFormatXex) {
+    return 0;
+  }
+
+  xex2_opt_execution_info* opt_exec_info = nullptr;
+  if (xex_module()->GetOptHeader(XEX_HEADER_EXECUTION_INFO, &opt_exec_info)) {
+    return static_cast<uint32_t>(opt_exec_info->title_id);
+  }
+  return 0;
+}
+
+std::string UserModule::bounding_filename() const {
+  std::string bounding_filename = "";
+
+  if (module_format_ != kModuleFormatXex) {
+    return bounding_filename;
+  }
+
+  xex2_opt_bound_path* bounding_path = nullptr;
+  if (xex_module()->GetOptHeader(XEX_HEADER_BOUNDING_PATH, &bounding_path)) {
+    bounding_filename =
+        utf8::find_base_name_from_guest_path(std::string(bounding_path->path));
+  }
+
+  return bounding_filename;
+}
+
+uint32_t UserModule::disc_number() const {
+  if (module_format_ != kModuleFormatXex) {
+    return 1;
+  }
+
+  xex2_opt_execution_info* opt_exec_info = nullptr;
+  if (xex_module()->GetOptHeader(XEX_HEADER_EXECUTION_INFO, &opt_exec_info)) {
+    return static_cast<uint32_t>(opt_exec_info->disc_number);
+  }
+  return 1;
+}
+
+bool UserModule::is_multi_disc_title() const {
+  if (module_format_ != kModuleFormatXex) {
+    return false;
+  }
+
+  xex2_opt_execution_info* opt_exec_info = nullptr;
+  if (xex_module()->GetOptHeader(XEX_HEADER_EXECUTION_INFO, &opt_exec_info)) {
+    return opt_exec_info->disc_count > 1;
+  }
+  return false;
+}
 
 X_STATUS UserModule::LoadFromFile(const std::string_view path) {
   X_STATUS result = X_STATUS_UNSUCCESSFUL;
@@ -276,7 +301,8 @@ X_STATUS UserModule::LoadFromFile(const std::string_view path) {
     // Read entire file into memory.
     // Ugh.
     size_t bytes_read = 0;
-    result = file->ReadSync(buffer.data(), buffer.size(), 0, &bytes_read);
+    result = file->ReadSync(std::span<uint8_t>(buffer.data(), buffer.size()), 0,
+                            &bytes_read);
     if (XFAILED(result)) {
       return result;
     }
@@ -287,39 +313,7 @@ X_STATUS UserModule::LoadFromFile(const std::string_view path) {
     // Close the file.
     file->Destroy();
   }
-
-  // Only XEX returns X_STATUS_PENDING
-  if (result != X_STATUS_PENDING) {
-    return result;
-  }
-
-  if (cvars::xex_apply_patches) {
-    // Search for xexp patch file
-    auto patch_entry = kernel_state()->file_system()->ResolvePath(path_ + "p");
-
-    if (patch_entry) {
-      auto patch_path = patch_entry->absolute_path();
-
-      XELOGI("Loading XEX patch from {}", patch_path);
-
-      auto patch_module = object_ref<UserModule>(new UserModule(kernel_state_));
-      result = patch_module->LoadFromFile(patch_path);
-      if (!result) {
-        result = patch_module->xex_module()->ApplyPatch(xex_module());
-        if (result) {
-          XELOGE("Failed to apply XEX patch, code: {}", result);
-        }
-      } else {
-        XELOGE("Failed to load XEX patch, code: {}", result);
-      }
-
-      if (result) {
-        return X_STATUS_UNSUCCESSFUL;
-      }
-    }
-  }
-
-  return LoadXexContinue();
+  return result;
 }
 
 X_STATUS UserModule::LoadFromMemory(const void* addr, const size_t length) {
@@ -332,13 +326,16 @@ X_STATUS UserModule::LoadFromMemory(const void* addr, const size_t length) {
   } else if (magic == xe::cpu::kElfSignature) {
     module_format_ = kModuleFormatElf;
   } else {
-    be<uint16_t> magic16;
-    magic16.value = xe::load<uint16_t>(addr);
-    if (magic16 == 0x4D5A) {
+    uint8_t M = xe::load<uint8_t>(addr);
+    uint8_t Z = xe::load<uint8_t>(reinterpret_cast<void*>(
+        reinterpret_cast<uint64_t>(addr) + sizeof(uint8_t)));
+
+    magic = make_fourcc(M, Z, 0, 0);
+    if (magic == kEXESignature) {
       XELOGE("XNA executables are not yet implemented");
       return X_STATUS_NOT_IMPLEMENTED;
     } else {
-      XELOGE("Unknown module magic: {:08X}", magic);
+      XELOGE("Unknown module magic: {:08X}", magic.get());
       return X_STATUS_NOT_IMPLEMENTED;
     }
   }
@@ -385,7 +382,14 @@ X_STATUS UserModule::LoadFromMemory(const void* addr, const size_t length) {
   return X_STATUS_SUCCESS;
 }
 
-X_STATUS UserModule::LoadXexContinue() {
+X_STATUS UserModule::LoadFromMemoryNamed(const std::string_view raw_name,
+                                         const void* addr,
+                                         const size_t length) {
+  name_ = std::string(raw_name);
+  return LoadFromMemory(addr, length);
+}
+
+X_STATUS UserModule::LoadContinue() {
   // LoadXexContinue: finishes loading XEX after a patch has been applied (or
   // patch wasn't found)
 
@@ -417,6 +421,13 @@ X_STATUS UserModule::LoadXexContinue() {
   // Cache some commonly used headers...
   this->xex_module()->GetOptHeader(XEX_HEADER_ENTRY_POINT, &entry_point_);
   this->xex_module()->GetOptHeader(XEX_HEADER_DEFAULT_STACK_SIZE, &stack_size_);
+
+  xe::be<uint32_t>* ws_size = 0;
+  this->xex_module()->GetOptHeader(XEX_HEADER_TITLE_WORKSPACE_SIZE, &ws_size);
+  // ToDo: Find better way to handle default and mimimal values!
+  if (ws_size && *ws_size) {
+    workspace_size_ = std::max(ws_size->get(), uint32_t(256 * 1024));
+  }
   is_dll_module_ = !!(header->module_flags & XEX_MODULE_DLL_MODULE);
 
   // Setup the loader data entry
@@ -427,6 +438,7 @@ X_STATUS UserModule::LoadXexContinue() {
   ldr_data->xex_header_base = guest_xex_header_;
   ldr_data->full_image_size = security_header->image_size;
   ldr_data->image_base = this->xex_module()->base_address();
+
   ldr_data->entry_point = entry_point_;
 
   OnLoad();
@@ -597,15 +609,30 @@ void UserModule::Dump() {
       kernel_state_->emulator()->export_resolver();
   auto header = xex_header();
 
+  CalculateHash();
+
   // XEX header.
   sb.AppendFormat("Module {}:\n", path_);
+
+  sb.AppendFormat("Module Hash: {:016X}\n", hash_.value_or(UINT64_MAX));
+
   sb.AppendFormat("    Module Flags: {:08X}\n", (uint32_t)header->module_flags);
+  for (const auto& entry : xex2_module_flags_map) {
+    if (header->module_flags & entry.first) {
+      sb.AppendFormat("      {}\n", entry.second);
+    }
+  }
 
   // Security header
   auto security_info = xex_module()->xex_security_info();
   sb.Append("Security Header:\n");
   sb.AppendFormat("     Image Flags: {:08X}\n",
                   (uint32_t)security_info->image_flags);
+  for (const auto& entry : xex2_image_flags_map) {
+    if (security_info->image_flags & entry.first) {
+      sb.AppendFormat("       {}\n", entry.second);
+    }
+  }
   sb.AppendFormat("    Load Address: {:08X}\n",
                   (uint32_t)security_info->load_address);
   sb.AppendFormat("      Image Size: {:08X}\n",
@@ -644,16 +671,131 @@ void UserModule::Dump() {
         }
       } break;
       case XEX_HEADER_FILE_FORMAT_INFO: {
-        sb.Append("  XEX_HEADER_FILE_FORMAT_INFO (TODO):\n");
+        sb.Append("  XEX_HEADER_FILE_FORMAT_INFO:\n");
+        auto opt_file_format_info =
+            reinterpret_cast<const xex2_opt_file_format_info*>(opt_header_ptr);
+
+        sb.AppendFormat("           Info Size: {}\n",
+                        static_cast<uint32_t>(opt_file_format_info->info_size));
+        const std::string encryption =
+            xex2_encryption_type_map.at(opt_file_format_info->encryption_type);
+        sb.AppendFormat("     Encryption Type: {}\n", encryption);
+        const std::string compression = xex2_compression_type_map.at(
+            opt_file_format_info->compression_type);
+        sb.AppendFormat("    Compression Type: {}\n", compression);
+        if (opt_file_format_info->compression_type == 1) {
+          sb.AppendFormat(
+              "          Data Size: {}\n",
+              static_cast<uint32_t>(
+                  opt_file_format_info->compression_info.basic.blocks[0]
+                      .data_size));
+          sb.AppendFormat(
+              "          Zero Size: {}\n",
+              static_cast<uint32_t>(
+                  opt_file_format_info->compression_info.basic.blocks[0]
+                      .zero_size));
+        } else if (opt_file_format_info->compression_type == 2) {
+          sb.AppendFormat(
+              "         Window Size: {}\n",
+              static_cast<uint32_t>(
+                  opt_file_format_info->compression_info.normal.window_size));
+          sb.AppendFormat(
+              "          Block Size: {}\n",
+              static_cast<uint32_t>(opt_file_format_info->compression_info
+                                        .normal.first_block.block_size));
+          sb.Append("          Block Hash:");
+          for (int l = 0; l < 0x20; l++) {
+            sb.AppendFormat(" {:02X}", opt_file_format_info->compression_info
+                                           .normal.first_block.block_hash[l]);
+          }
+          sb.Append("\n");
+        } else {
+          sb.AppendFormat("          Compression Info: Not Implemented\n");
+        }
       } break;
       case XEX_HEADER_DELTA_PATCH_DESCRIPTOR: {
-        sb.Append("  XEX_HEADER_DELTA_PATCH_DESCRIPTOR (TODO):\n");
+        sb.Append("  XEX_HEADER_DELTA_PATCH_DESCRIPTOR:\n");
+        auto opt_delta_patch_descriptor =
+            reinterpret_cast<const xex2_opt_delta_patch_descriptor*>(
+                opt_header_ptr);
+
+        sb.AppendFormat(
+            "          Size: {}\n",
+            static_cast<uint32_t>(opt_delta_patch_descriptor->size));
+        sb.AppendFormat("          Target Version: {}\n",
+                        static_cast<uint32_t>(
+                            opt_delta_patch_descriptor->target_version_value));
+        sb.AppendFormat("          Source Version: {}\n",
+                        static_cast<uint32_t>(
+                            opt_delta_patch_descriptor->source_version_value));
+        sb.Append("          Digest Source:");
+        for (int l = 0; l < 0x14; l++) {
+          sb.AppendFormat(" {:02X}",
+                          opt_delta_patch_descriptor->digest_source[l]);
+        }
+        sb.Append("\n          Image Key Source:");
+        for (int l = 0; l < 0x14; l++) {
+          sb.AppendFormat(" {:02X}",
+                          opt_delta_patch_descriptor->image_key_source[l]);
+        }
+        sb.AppendFormat(
+            "\n          Size Of Target Header: {}\n",
+            static_cast<uint32_t>(
+                opt_delta_patch_descriptor->size_of_target_headers));
+        sb.AppendFormat(
+            "          Delta Header Source Offset: {}\n",
+            static_cast<uint32_t>(
+                opt_delta_patch_descriptor->delta_headers_source_offset));
+        sb.AppendFormat(
+            "          Delta Header Source Size: {}\n",
+            static_cast<uint32_t>(
+                opt_delta_patch_descriptor->delta_headers_source_size));
+        sb.AppendFormat(
+            "          Delta Header Target Offset: {}\n",
+            static_cast<uint32_t>(
+                opt_delta_patch_descriptor->delta_headers_target_offset));
+        sb.AppendFormat(
+            "          Delta Image Source Offset: {}\n",
+            static_cast<uint32_t>(
+                opt_delta_patch_descriptor->delta_image_source_offset));
+        sb.AppendFormat(
+            "          Delta Imge Source Size: {}\n",
+            static_cast<uint32_t>(
+                opt_delta_patch_descriptor->delta_image_source_size));
+        sb.AppendFormat(
+            "          Delta Image Target Offset: {}\n",
+            static_cast<uint32_t>(
+                opt_delta_patch_descriptor->delta_image_target_offset));
+        sb.AppendFormat(
+            "          Old Address: {}\n",
+            static_cast<uint32_t>(opt_delta_patch_descriptor->info.old_addr));
+        sb.AppendFormat(
+            "          New Address: {}\n",
+            static_cast<uint32_t>(opt_delta_patch_descriptor->info.new_addr));
+        sb.AppendFormat("          Uncompressed Lens: {}\n",
+                        static_cast<uint16_t>(
+                            opt_delta_patch_descriptor->info.uncompressed_len));
+        sb.AppendFormat("          Compressed Lens: {}\n",
+                        static_cast<uint16_t>(
+                            opt_delta_patch_descriptor->info.compressed_len));
+        sb.AppendFormat(
+            "          Patch Data: {}\n",
+            static_cast<char>(opt_delta_patch_descriptor->info.patch_data[0]));
+      } break;
+      case XEX_HEADER_BASE_REFERENCE: {
+        sb.Append("  XEX_HEADER_BASE_REFERENCE (TODO):\n");
+      } break;
+      case XEX_HEADER_DISC_PROFILE_ID: {  // 4D530919, 4156091D
+        sb.Append("  XEX_HEADER_DISC_PROFILE_ID (TODO):\n");
       } break;
       case XEX_HEADER_BOUNDING_PATH: {
         auto opt_bound_path =
             reinterpret_cast<const xex2_opt_bound_path*>(opt_header_ptr);
         sb.AppendFormat("  XEX_HEADER_BOUNDING_PATH: {}\n",
                         opt_bound_path->path);
+      } break;
+      case XEX_HEADER_DEVICE_ID: {
+        sb.Append("  XEX_HEADER_DEVICE_ID (TODO):\n");
       } break;
       case XEX_HEADER_ORIGINAL_BASE_ADDRESS: {
         sb.AppendFormat("  XEX_HEADER_ORIGINAL_BASE_ADDRESS: {:08X}\n",
@@ -720,7 +862,46 @@ void UserModule::Dump() {
         }
       } break;
       case XEX_HEADER_CHECKSUM_TIMESTAMP: {
-        sb.Append("  XEX_HEADER_CHECKSUM_TIMESTAMP (TODO):\n");
+        // TODO(Byrom): Relocate parts of this to somewhere more suitable
+        // (if possible) to leave only the log printing portion.
+        auto opt_checksum_timedatestamp =
+            reinterpret_cast<const xex2_opt_checksum_timedatestamp*>(
+                opt_header_ptr);
+
+        // Store the checksum & timedatestamp just in case we need them later.
+        mod_checksum_ = opt_checksum_timedatestamp->checksum;
+        time_date_stamp_ = opt_checksum_timedatestamp->timedatestamp;
+        // Update the ldr data with the timedatestamp only.
+        // The checksum field is being used to store the kernel object handle
+        // (xmodule.cc XModule::XModule)
+        auto ldr_data =
+            memory()->TranslateVirtual<X_LDR_DATA_TABLE_ENTRY*>(hmodule_ptr_);
+        ldr_data->time_date_stamp = time_date_stamp_;
+
+        time_t time = (time_t)opt_checksum_timedatestamp->timedatestamp;
+        struct tm* timeinfo = localtime(&time);
+        sb.AppendFormat("  XEX_HEADER_CHECKSUM_TIMESTAMP:\n");
+        sb.AppendFormat(
+            "    Checksum : {:08X}\n",
+            static_cast<uint32_t>(opt_checksum_timedatestamp->checksum));
+        sb.AppendFormat(
+            "    Time Stamp: {:08X} - {}",
+            static_cast<uint32_t>(opt_checksum_timedatestamp->timedatestamp),
+            asctime(timeinfo));
+      } break;
+      case XEX_HEADER_ENABLED_FOR_CALLCAP: {
+        sb.Append("  XEX_HEADER_ENABLED_FOR_CALLCAP:\n");
+        auto opt_call_cap_imports =
+            reinterpret_cast<const xex2_opt_call_cap_imports*>(opt_header_ptr);
+        sb.AppendFormat(
+            "          Starting Function Thunk Address: {:08X}\n",
+            static_cast<uint32_t>(opt_call_cap_imports->start_func_thunk_addr));
+        sb.AppendFormat(
+            "          Ending Function Thunk Address: {:08X}\n",
+            static_cast<uint32_t>(opt_call_cap_imports->end_func_thunk_addr));
+      } break;
+      case XEX_HEADER_ENABLED_FOR_FASTCAP: {
+        sb.Append("  XEX_HEADER_ENABLED_FOR_FASTCAP (TODO):\n");
       } break;
       case XEX_HEADER_ORIGINAL_PE_NAME: {
         auto opt_pe_name =
@@ -775,6 +956,33 @@ void UserModule::Dump() {
       case XEX_HEADER_SYSTEM_FLAGS: {
         sb.AppendFormat("  XEX_HEADER_SYSTEM_FLAGS: {:08X}\n",
                         static_cast<uint32_t>(opt_header.value));
+        uint32_t unused_flag = opt_header.value;
+        for (const auto& entry : xex2_system_flags_map) {
+          if (opt_header.value & entry.first) {
+            sb.AppendFormat("    {}\n", entry.second);
+            unused_flag &= ~entry.first;
+          }
+        }
+        if (unused_flag) {
+          sb.AppendFormat("    Unk flag: {:08X}\n", unused_flag);
+        }
+      } break;
+      case XEX_HEADER_SYSTEM_FLAGS_32: {
+        sb.AppendFormat("  XEX_HEADER_SYSTEM_FLAGS_32: {:08X}\n",
+                        static_cast<uint32_t>(opt_header.value));
+        uint32_t unused_flag = opt_header.value;
+        for (const auto& entry : xex2_system_flags_32_map) {
+          if (opt_header.value & entry.first) {
+            sb.AppendFormat("    {}\n", entry.second);
+            unused_flag &= ~entry.first;
+          }
+        }
+        if (unused_flag) {
+          sb.AppendFormat("    Unk flag: {:08X}\n", unused_flag);
+        }
+      } break;
+      case XEX_HEADER_SYSTEM_FLAGS_64: {
+        sb.Append("  XEX_HEADER_SYSTEM_FLAGS_64 (TODO):\n");
       } break;
       case XEX_HEADER_EXECUTION_INFO: {
         sb.Append("  XEX_HEADER_EXECUTION_INFO:\n");
@@ -795,7 +1003,98 @@ void UserModule::Dump() {
                         uint32_t(opt_header.value));
       } break;
       case XEX_HEADER_GAME_RATINGS: {
-        sb.Append("  XEX_HEADER_GAME_RATINGS (TODO):\n");
+        sb.Append("  XEX_HEADER_GAME_RATINGS:\n");
+        auto opt_game_ratings =
+            reinterpret_cast<const xex2_game_ratings_t*>(opt_header_ptr);
+        if (xex2_rating_esrb_value_map.contains(opt_game_ratings->esrb)) {
+          sb.AppendFormat("          ESRB: {}\n", xex2_rating_esrb_value_map.at(
+                                                      opt_game_ratings->esrb));
+        } else {
+          sb.AppendFormat("          Unk ESRB: 0x{:02x}\n",
+                          static_cast<uint8_t>(opt_game_ratings->esrb));
+        }
+        if (xex2_rating_pegi_value_map.contains(opt_game_ratings->pegi)) {
+          sb.AppendFormat("          PEGI: {}\n", xex2_rating_pegi_value_map.at(
+                                                      opt_game_ratings->pegi));
+        } else {
+          sb.AppendFormat("          Unk PEGI: 0x{:02x}\n",
+                          static_cast<uint8_t>(opt_game_ratings->pegi));
+        }
+        if (xex2_rating_pegi_fi_value_map.contains(opt_game_ratings->pegifi)) {
+          sb.AppendFormat(
+              "          PEGI-FI: {}\n",
+              xex2_rating_pegi_fi_value_map.at(opt_game_ratings->pegifi));
+        } else {
+          sb.AppendFormat("          Unk PEGI - FI: 0x{:02x}\n",
+                          static_cast<uint8_t>(opt_game_ratings->pegifi));
+        }
+        if (xex2_rating_pegi_pt_value_map.contains(opt_game_ratings->pegipt)) {
+          sb.AppendFormat(
+              "          PEGI - PT: {}\n",
+              xex2_rating_pegi_pt_value_map.at(opt_game_ratings->pegipt));
+        } else {
+          sb.AppendFormat("          Unk PEGI-PT: 0x{:02x}\n",
+                          static_cast<uint8_t>(opt_game_ratings->pegipt));
+        }
+        if (xex2_rating_bbfc_value_map.contains(opt_game_ratings->bbfc)) {
+          sb.AppendFormat("          BBFC: {}\n", xex2_rating_bbfc_value_map.at(
+                                                      opt_game_ratings->bbfc));
+        } else {
+          sb.AppendFormat("          Unk BBFC: {:02x}\n",
+                          static_cast<uint8_t>(opt_game_ratings->bbfc));
+        }
+        if (xex2_rating_cero_value_map.contains(opt_game_ratings->cero)) {
+          sb.AppendFormat("          CERO: {}\n", xex2_rating_cero_value_map.at(
+                                                      opt_game_ratings->cero));
+        } else {
+          sb.AppendFormat("          Unk CERO: 0x{:02x}\n",
+                          static_cast<uint8_t>(opt_game_ratings->cero));
+        }
+        if (xex2_rating_usk_value_map.contains(opt_game_ratings->usk)) {
+          sb.AppendFormat("          USK: {}\n",
+                          xex2_rating_usk_value_map.at(opt_game_ratings->usk));
+        } else {
+          sb.AppendFormat("          Unk USK: 0x{:02x}\n",
+                          static_cast<uint8_t>(opt_game_ratings->usk));
+        }
+        if (xex2_rating_oflc_au_value_map.contains(opt_game_ratings->oflcau)) {
+          sb.AppendFormat(
+              "          OFLC - AU: {}\n",
+              xex2_rating_oflc_au_value_map.at(opt_game_ratings->oflcau));
+        } else {
+          sb.AppendFormat("          Unk OFLC - AU: 0x{:02x}\n",
+                          static_cast<uint8_t>(opt_game_ratings->oflcau));
+        }
+        if (xex2_rating_oflc_nz_value_map.contains(opt_game_ratings->oflcnz)) {
+          sb.AppendFormat(
+              "          OFLC - NZ: {}\n",
+              xex2_rating_oflc_nz_value_map.at(opt_game_ratings->oflcnz));
+        } else {
+          sb.AppendFormat("          Unk OFLC - NZ: 0x{:02x}\n",
+                          static_cast<uint8_t>(opt_game_ratings->oflcau));
+        }
+        if (xex2_rating_kmrb_value_map.contains(opt_game_ratings->kmrb)) {
+          sb.AppendFormat("          KMRB: {}\n", xex2_rating_kmrb_value_map.at(
+                                                      opt_game_ratings->kmrb));
+        } else {
+          sb.AppendFormat("          Unk KMRB: 0x{:02x}\n",
+                          static_cast<uint8_t>(opt_game_ratings->kmrb));
+        }
+        if (xex2_rating_brazil_value_map.contains(opt_game_ratings->brazil)) {
+          sb.AppendFormat(
+              "          Brazil: {}\n",
+              xex2_rating_brazil_value_map.at(opt_game_ratings->brazil));
+        } else {
+          sb.AppendFormat("          Unk Brazil: 0x{:02x}\n",
+                          static_cast<uint8_t>(opt_game_ratings->brazil));
+        }
+        if (xex2_rating_fpb_value_map.contains(opt_game_ratings->fpb)) {
+          sb.AppendFormat("          FPB: {}\n",
+                          xex2_rating_fpb_value_map.at(opt_game_ratings->fpb));
+        } else {
+          sb.AppendFormat("          Unk FPB: 0x{:02x}\n",
+                          static_cast<uint8_t>(opt_game_ratings->fpb));
+        }
       } break;
       case XEX_HEADER_LAN_KEY: {
         sb.Append("  XEX_HEADER_LAN_KEY:");
@@ -808,13 +1107,36 @@ void UserModule::Dump() {
         sb.Append("\n");
       } break;
       case XEX_HEADER_XBOX360_LOGO: {
-        sb.Append("  XEX_HEADER_XBOX360_LOGO (TODO):\n");
+        sb.Append("  XEX_HEADER_XBOX360_LOGO:\n");
+        auto opt_ms_logo =
+            reinterpret_cast<const xex2_opt_ms_logo*>(opt_header_ptr);
+
+        sb.AppendFormat("          Section Size: {}\n",
+                        static_cast<uint32_t>(opt_ms_logo->section_size));
+        sb.AppendFormat("          Logo Size: {}\n",
+                        static_cast<uint32_t>(opt_ms_logo->logo_size));
       } break;
-      case XEX_HEADER_MULTIDISC_MEDIA_IDS: {
+      case XEX_HEADER_MULTIDISC_MEDIA_IDS: {  // 4D5307DF
         sb.Append("  XEX_HEADER_MULTIDISC_MEDIA_IDS (TODO):\n");
       } break;
       case XEX_HEADER_ALTERNATE_TITLE_IDS: {
-        sb.Append("  XEX_HEADER_ALTERNATE_TITLE_IDS (TODO):\n");
+        sb.Append("  XEX_HEADER_ALTERNATE_TITLE_IDS:");
+        auto opt_alternate_title_id =
+            reinterpret_cast<const xex2_opt_generic_u32*>(opt_header_ptr);
+
+        std::string title_ids = "";
+
+        for (uint32_t i = 0; i < opt_alternate_title_id->count(); i++) {
+          if (opt_alternate_title_id->values[i] != 0) {
+            title_ids.append(fmt::format(
+                " {:08X},", opt_alternate_title_id->values[i].get()));
+          }
+        }
+        // Remove last character as it is not necessary
+        if (!title_ids.empty()) {
+          title_ids.pop_back();
+          sb.AppendFormat("{}\n", title_ids);
+        }
       } break;
       case XEX_HEADER_ADDITIONAL_TITLE_MEMORY: {
         sb.AppendFormat("  XEX_HEADER_ADDITIONAL_TITLE_MEMORY: {}\n",
@@ -979,7 +1301,7 @@ void UserModule::Dump() {
           }
         }
         if (kernel_export &&
-            kernel_export->type == cpu::Export::Type::kVariable) {
+            kernel_export->get_type() == cpu::Export::Type::kVariable) {
           sb.AppendFormat("   V {:08X}          {:03X} ({:4}) {} {}\n",
                           info->value_address, info->ordinal, info->ordinal,
                           implemented ? "  " : "!!", name);
@@ -998,5 +1320,46 @@ void UserModule::Dump() {
   xe::logging::AppendLogLine(xe::LogLevel::Info, 'i', sb.to_string_view());
 }
 
+void UserModule::CalculateHash() {
+  const BaseHeap* module_heap =
+      kernel_state_->memory()->LookupHeap(xex_module()->base_address());
+
+  if (!module_heap) {
+    XELOGE("Invalid heap for xex module! Address: {:08X}",
+           xex_module()->base_address());
+    return;
+  }
+
+  const uint32_t page_size = module_heap->page_size();
+  auto security_info = xex_module()->xex_security_info();
+
+  auto find_code_section_page = [&security_info](bool from_bottom) {
+    for (uint32_t i = 0; i < security_info->page_descriptor_count; i++) {
+      const uint32_t page_index =
+          from_bottom ? i : (security_info->page_descriptor_count - 1) - i;
+      xex2_page_descriptor page_descriptor;
+      page_descriptor.value =
+          xe::byte_swap(security_info->page_descriptors[page_index].value);
+      if (page_descriptor.info != XEX_SECTION_CODE) {
+        continue;
+      }
+      return page_index;
+    }
+    return UINT32_MAX;
+  };
+
+  const uint32_t start_address =
+      xex_module()->base_address() + (find_code_section_page(true) * page_size);
+  const uint32_t end_address =
+      xex_module()->base_address() +
+      ((find_code_section_page(false) + 1) * page_size);
+
+  uint8_t* base_code_adr = memory()->TranslateVirtual(start_address);
+
+  XXH3_state_t hash_state;
+  XXH3_64bits_reset(&hash_state);
+  XXH3_64bits_update(&hash_state, base_code_adr, end_address - start_address);
+  hash_ = XXH3_64bits_digest(&hash_state);
+}
 }  // namespace kernel
 }  // namespace xe

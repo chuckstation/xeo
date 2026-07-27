@@ -42,6 +42,16 @@ if(EXISTS "${XE_SRC}/xenia/kernel/util/gameinfo_utils.h")
   message(STATUS "Detected gameinfo_utils.h, defining XE_HAS_GAMEINFO_UTILS=1")
 endif()
 
+if(EXISTS "${XE_SRC}/xenia/kernel/util/xdbf_utils.h")
+  add_compile_definitions(XE_HAS_XDBF_UTILS=1)
+  message(STATUS "Detected xdbf_utils.h, defining XE_HAS_XDBF_UTILS=1")
+endif()
+
+if(EXISTS "${XE_SRC}/xenia/vfs/devices/stfs_container_device.h")
+  add_compile_definitions(XE_HAS_STFS_CONTAINER_DEVICE=1)
+  message(STATUS "Detected stfs_container_device.h, defining XE_HAS_STFS_CONTAINER_DEVICE=1")
+endif()
+
 # ---------------------------------------------------------------------------
 # Compiler flags
 # ---------------------------------------------------------------------------
@@ -78,6 +88,7 @@ add_compile_definitions(
 
   # Third-party lib config
   FMT_HEADER_ONLY=1
+  VULKAN_HPP_NO_TO_STRING=1
   CAPSTONE_X86_ATT_DISABLE=1
   CAPSTONE_DIET_NO=1
   CAPSTONE_X86_REDUCE_NO=1
@@ -135,6 +146,7 @@ include_directories(
   "${XE_3P}/date/include"
   "${XE_3P}/llvm/include"
   "${XE_3P}/FFmpeg"
+  "${XE_3P}/ffmpeg-xenia"
   "${CMAKE_CURRENT_SOURCE_DIR}/jni"
   "${CMAKE_CURRENT_SOURCE_DIR}/custom_include"
 )
