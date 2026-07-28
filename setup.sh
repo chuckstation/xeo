@@ -32,6 +32,10 @@ if [[ -d "${REPO}/patches" ]]; then
   mkdir -p "${UPSTREAM}/src/xenia/hid/"
   cp -R "${REPO}/patches/hid/"* "${UPSTREAM}/src/xenia/hid/"
   cp "${REPO}/patches/emulator.cc" "${UPSTREAM}/src/xenia/emulator.cc"
+  if [[ -f "${REPO}/patches/tools/build/compile_shader_spirv.py" ]]; then
+    mkdir -p "${UPSTREAM}/tools/build/"
+    cp "${REPO}/patches/tools/build/compile_shader_spirv.py" "${UPSTREAM}/tools/build/compile_shader_spirv.py"
+  fi
 fi
 
 for target in src third_party; do
