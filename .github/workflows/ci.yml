@@ -50,6 +50,39 @@ jobs:
           ls src/xenia/
           ls third_party/ | head -10
 
+      # --- FIX: Install SPIR-V tools and generate missing shader headers ---
+      - name: Install SPIR-V build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y glslang-tools spirv-tools
+
+      - name: Generate SPIR-V shader headers
+        run: |
+          SPIRV_DIR="src/xenia/gpu/shaders/bytecode/vulkan_spirv"
+
+          # Fast path — headers already present from upstream clone
+          if [ -d "$SPIRV_DIR" ] && compgen -G "$SPIRV_DIR/*.h" > /dev/null; then
+            echo "SPIR-V headers already present ($(ls "$SPIRV_DIR"/*.h | wc -l) files), skipping generation."
+            exit 0
+          fi
+
+          echo "SPIR-V headers missing — attempting generation..."
+          mkdir -p "$SPIRV_DIR"
+
+          # Look for the upstream generation script
+          SCRIPT=$(find src/xenia -name "build_spirv_shaders.py" -type f 2>/dev/null | head -1)
+
+          if [ -n "$SCRIPT" ]; then
+            echo "Found generation script: $SCRIPT"
+            python3 "$SCRIPT"
+            echo "Generated $(compgen -G "$SPIRV_DIR/*.h" | wc -l) SPIR-V headers."
+          else
+            echo "::warning::build_spirv_shaders.py not found — headers may already be present in upstream."
+            echo "Contents of src/xenia/gpu/shaders/:"
+            find src/xenia/gpu/shaders/ -maxdepth 2 -type f -name "*.py" 2>/dev/null || echo "  (none)"
+          fi
+      # --- END FIX ---
+
       - name: Set up JDK ${{ env.JAVA_VERSION }}
         uses: actions/setup-java@v4
         with:
