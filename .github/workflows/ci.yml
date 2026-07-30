@@ -31,15 +31,13 @@ jobs:
           fetch-depth: 1
 
       # Clone xenia upstream directly — avoids submodule index registration issues.
-      # A shallow clone keeps CI fast (~50 MB vs ~500 MB for full history).
+      # A shallow clone of the exact pinned submodule commit keeps CI fast and robust.
       - name: Clone xenia-upstream
         run: |
-          git clone \
-            --depth 1 \
-            --branch canary_experimental \
-            --single-branch \
-            https://github.com/xenia-canary/xenia-canary.git \
-            xenia-upstream
+          git init xenia-upstream
+          git -C xenia-upstream remote add origin https://github.com/xenia-canary/xenia-canary.git
+          git -C xenia-upstream fetch --depth 1 origin 8f55b4abf70d5041e2e9da65f8b2adcce002b115
+          git -C xenia-upstream checkout FETCH_HEAD
           echo "xenia-upstream: $(git -C xenia-upstream rev-parse HEAD)"
 
       - name: Install shader compilation tools
@@ -49,6 +47,9 @@ jobs:
 
       - name: Symlink src/ and third_party/
         run: bash setup.sh
+
+      - name: Compile SPIR-V Shaders
+        run: python3 xenia-upstream/xenia-build.py buildshaders --target spirv
 
       - name: Verify source tree
         run: |
