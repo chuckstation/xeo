@@ -469,10 +469,21 @@ void ShutdownLogging() {
   memory::AlignedFree(logger);
 }
 
+#ifndef XE_NOALIAS
+#define XE_NOALIAS
+#endif
+
+#ifdef XE_LOGGING_HAS_LOG_MASK
 bool logging::ShouldLog(LogLevel log_level, uint32_t log_mask) {
   return logger_ != nullptr &&
          static_cast<int32_t>(log_level) <= cvars::log_level;
 }
+#else
+bool logging::ShouldLog(LogLevel log_level) {
+  return logger_ != nullptr &&
+         static_cast<int32_t>(log_level) <= cvars::log_level;
+}
+#endif
 
 std::pair<char*, size_t> logging::internal::GetThreadBuffer() {
   return {thread_log_buffer_, sizeof(thread_log_buffer_)};
@@ -488,6 +499,7 @@ void logging::internal::AppendLogLine(LogLevel log_level,
                       thread_log_buffer_, written);
 }
 
+#ifdef XE_LOGGING_HAS_LOG_MASK
 void logging::AppendLogLine(LogLevel log_level, const char prefix_char,
                             const std::string_view str, uint32_t log_mask) {
   if (!ShouldLog(log_level, log_mask) || !str.size()) {
@@ -496,6 +508,16 @@ void logging::AppendLogLine(LogLevel log_level, const char prefix_char,
   logger_->AppendLine(xe::threading::current_thread_id(), prefix_char,
                       str.data(), str.size());
 }
+#else
+void logging::AppendLogLine(LogLevel log_level, const char prefix_char,
+                            const std::string_view str) {
+  if (!ShouldLog(log_level) || !str.size()) {
+    return;
+  }
+  logger_->AppendLine(xe::threading::current_thread_id(), prefix_char,
+                      str.data(), str.size());
+}
+#endif
 
 void FatalError(const std::string_view str) {
   logging::AppendLogLine(LogLevel::Error, 'x', str);

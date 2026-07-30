@@ -36,8 +36,15 @@
 #include "xenia/hid/input_system.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/user_module.h"
+#ifdef XE_HAS_GAMEINFO_UTILS
 #include "xenia/kernel/util/gameinfo_utils.h"
+#endif
+#ifdef XE_HAS_XDBF_UTILS
 #include "xenia/kernel/util/xdbf_utils.h"
+#else
+#include "xenia/kernel/xam/xdbf/spa_info.h"
+#include "third_party/tabulate/single_include/tabulate/tabulate.hpp"
+#endif
 #include "xenia/kernel/xam/xam_module.h"
 #include "xenia/kernel/xbdm/xbdm_module.h"
 #include "xenia/kernel/xboxkrnl/xboxkrnl_module.h"
@@ -49,7 +56,11 @@
 #include "xenia/vfs/devices/disc_image_device.h"
 #include "xenia/vfs/devices/host_path_device.h"
 #include "xenia/vfs/devices/null_device.h"
+#ifdef XE_HAS_STFS_CONTAINER_DEVICE
 #include "xenia/vfs/devices/stfs_container_device.h"
+#else
+#include "xenia/vfs/devices/xcontent_container_device.h"
+#endif
 #include "xenia/vfs/virtual_file_system.h"
 
 #if XE_ARCH_AMD64
@@ -215,8 +226,10 @@ X_STATUS Emulator::Setup(
     auto input_drivers = input_driver_factory(display_window_);
     for (size_t i = 0; i < input_drivers.size(); ++i) {
       auto& input_driver = input_drivers[i];
+#ifdef XE_HAS_GAMEINFO_UTILS
       input_driver->set_is_active_callback(
           []() -> bool { return !xe::kernel::xam::xeXamIsUIActive(); });
+#endif
       input_system_->AddDriver(std::move(input_driver));
     }
   }
@@ -275,6 +288,7 @@ X_STATUS Emulator::TerminateTitle() {
   return X_STATUS_SUCCESS;
 }
 
+#ifdef XE_HAS_STFS_CONTAINER_DEVICE
 X_STATUS Emulator::LaunchPath(const std::filesystem::path& path) {
   // Try to determine the format by reading magic bytes
   std::ifstream file(path, std::ios::binary);
@@ -372,28 +386,133 @@ X_STATUS Emulator::LaunchDiscImage(const std::filesystem::path& path) {
   auto module_path(FindLaunchModule());
   return CompleteLaunch(path, module_path);
 }
+#else
+X_STATUS Emulator::LaunchPath(const std::filesystem::path& path) {
+  X_STATUS mount_result = X_STATUS_SUCCESS;
 
-X_STATUS Emulator::LaunchStfsContainer(const std::filesystem::path& path) {
-  auto mount_path = "\\Device\\Cdrom0";
-
-  // Register the container in the virtual filesystem.
-  auto device = std::make_unique<vfs::StfsContainerDevice>(mount_path, path);
-  if (!device->Initialize()) {
-    XELOGE("Unable to mount STFS container; file not found or corrupt.");
-    return X_STATUS_NO_SUCH_FILE;
+  switch (GetFileSignature(path)) {
+    case FileSignatureType::XEX1:
+    case FileSignatureType::XEX2:
+    case FileSignatureType::ELF: {
+      mount_result = MountPath(path, "\\Device\\Harddisk0\\Partition1");
+      return mount_result ? mount_result : LaunchXexFile(path);
+    } break;
+    case FileSignatureType::LIVE:
+    case FileSignatureType::CON:
+    case FileSignatureType::PIRS: {
+      mount_result = MountPath(path, "\\Device\\Package_0");
+      return mount_result ? mount_result : LaunchStfsContainer(path);
+    } break;
+    case FileSignatureType::XISO: {
+      mount_result = MountPath(path, "\\Device\\Cdrom0");
+      return mount_result ? mount_result : LaunchDiscImage(path);
+    } break;
+    case FileSignatureType::ZAR: {
+      mount_result = MountPath(path, "\\Device\\Cdrom0");
+      return mount_result ? mount_result : LaunchDiscArchive(path);
+    } break;
+    case FileSignatureType::EXE:
+    case FileSignatureType::Unknown:
+    default:
+      return X_STATUS_NOT_SUPPORTED;
+      break;
   }
-  if (!file_system_->RegisterDevice(std::move(device))) {
-    XELOGE("Unable to register STFS container.");
-    return X_STATUS_NO_SUCH_FILE;
-  }
+}
 
-  file_system_->RegisterSymbolicLink("game:", mount_path);
-  file_system_->RegisterSymbolicLink("d:", mount_path);
+X_STATUS Emulator::LaunchXexFile(const std::filesystem::path& path) {
+  // We create a virtual filesystem pointing to its directory and symlink
+  // that to the game filesystem.
+  // e.g., /my/files/foo.xex will get a local fs at:
+  // \\Device\\Harddisk0\\Partition1
+  // and then get that symlinked to game:\, so
+  // -> game:\foo.xex
+  // Get just the filename (foo.xex).
+  auto file_name = path.filename();
 
   // Launch the game.
-  auto module_path(FindLaunchModule());
-  return CompleteLaunch(path, module_path);
+  auto fs_path = fmt::format("{}\\", kDefaultGameSymbolicLink) +
+                 xe::path_to_utf8(file_name);
+  X_STATUS result = CompleteLaunch(path, fs_path);
+
+  if (XFAILED(result)) {
+    return result;
+  }
+
+  kernel_state_->deployment_type_ = XDeploymentType::kInstalledToHDD;
+
+  if (!kernel::IsSystemTitle(kernel_state_->title_id())) {
+    return result;
+  }
+
+  const std::string mount_path =
+      utf8::find_base_guest_path(kernel_state_->GetExecutableModule()->path());
+
+  // System related symlinks. This should point to dashboard location in the
+  // future.
+  file_system_->RegisterSymbolicLink("\\SystemRoot", mount_path);
+
+  auto module = kernel_state_->LoadUserModule("xam.xex");
+
+  if (!module) {
+    module = kernel_state_->LoadUserModule("$flash_xam.xex");
+  }
+
+  if (module) {
+    result = kernel_state_->FinishLoadingUserModule(module, false);
+  }
+
+  return result;
 }
+
+X_STATUS Emulator::LaunchDiscImage(const std::filesystem::path& path) {
+  std::string module_path = FindLaunchModule();
+  X_STATUS result = CompleteLaunch(path, module_path);
+
+  if (result == X_STATUS_NOT_FOUND && !cvars::launch_module.empty()) {
+    return LaunchDefaultModule(path);
+  }
+  kernel_state_->deployment_type_ = XDeploymentType::kOpticalDisc;
+  return result;
+}
+
+X_STATUS Emulator::LaunchDiscArchive(const std::filesystem::path& path) {
+  std::string module_path = FindLaunchModule();
+  X_STATUS result = CompleteLaunch(path, module_path);
+
+  if (result == X_STATUS_NOT_FOUND && !cvars::launch_module.empty()) {
+    return LaunchDefaultModule(path);
+  }
+  kernel_state_->deployment_type_ = XDeploymentType::kOpticalDisc;
+  return result;
+}
+
+X_STATUS Emulator::LaunchStfsContainer(const std::filesystem::path& path) {
+  std::string module_path = FindLaunchModule();
+  X_STATUS result = CompleteLaunch(path, module_path);
+
+  if (result == X_STATUS_NOT_FOUND && !cvars::launch_module.empty()) {
+    return LaunchDefaultModule(path);
+  }
+  kernel_state_->deployment_type_ = XDeploymentType::kDownload;
+  return result;
+}
+
+X_STATUS Emulator::LaunchDefaultModule(const std::filesystem::path& path) {
+  cvars::launch_module = "";
+  std::string module_path = FindLaunchModule();
+  X_STATUS result = CompleteLaunch(path, module_path);
+
+  if (XSUCCEEDED(result)) {
+    kernel_state_->deployment_type_ = XDeploymentType::kInstalledToHDD;
+    auto title_id = kernel_state_->title_id();
+    if (!kernel::IsSystemTitle(title_id)) {
+      // Assumption that any loaded game is loaded as a disc.
+      kernel_state_->deployment_type_ = XDeploymentType::kOpticalDisc;
+    }
+  }
+  return result;
+}
+#endif
 
 void Emulator::Pause() {
   if (paused_) {
@@ -553,6 +672,7 @@ bool Emulator::RestoreFromFile(const std::filesystem::path& path) {
   return true;
 }
 
+#ifdef XE_HAS_GAMEINFO_UTILS
 bool Emulator::TitleRequested() {
   auto xam = kernel_state()->GetKernelModule<kernel::xam::XamModule>("xam.xex");
   return xam->loader_data().launch_data_present;
@@ -564,6 +684,7 @@ void Emulator::LaunchNextTitle() {
 
   CompleteLaunch("", next_title);
 }
+#endif
 
 bool Emulator::ExceptionCallbackThunk(Exception* ex, void* data) {
   return reinterpret_cast<Emulator*>(data)->ExceptionCallback(ex);
@@ -695,6 +816,7 @@ void Emulator::RemoveGameConfigLoadCallback(GameConfigLoadCallback* callback) {
   game_config_load_callbacks_.erase(it);
 }
 
+#ifdef XE_HAS_GAMEINFO_UTILS
 std::string Emulator::FindLaunchModule() {
   std::string path("game:\\");
 
@@ -732,6 +854,43 @@ std::string Emulator::FindLaunchModule() {
 
   return path + default_module;
 }
+#else
+std::string Emulator::FindLaunchModule() {
+  std::string path(fmt::format("{}\\", kDefaultGameSymbolicLink));
+
+  auto xam = kernel_state()->GetKernelModule<kernel::xam::XamModule>("xam.xex");
+
+  if (!xam->loader_data().launch_path.empty()) {
+    std::string symbolic_link_path;
+    if (kernel_state_->file_system()->FindSymbolicLink(kDefaultGameSymbolicLink,
+                                                       symbolic_link_path)) {
+      std::filesystem::path file_path = symbolic_link_path;
+      // Remove previous symbolic links.
+      // Some titles can provide root within specific directory.
+      kernel_state_->file_system()->UnregisterSymbolicLink(
+          kDefaultPartitionSymbolicLink);
+      kernel_state_->file_system()->UnregisterSymbolicLink(
+          kDefaultGameSymbolicLink);
+
+      file_path /= std::filesystem::path(xam->loader_data().launch_path);
+
+      kernel_state_->file_system()->RegisterSymbolicLink(
+          kDefaultPartitionSymbolicLink,
+          xe::path_to_utf8(file_path.parent_path()));
+      kernel_state_->file_system()->RegisterSymbolicLink(
+          kDefaultGameSymbolicLink, xe::path_to_utf8(file_path.parent_path()));
+
+      return xe::path_to_utf8(file_path);
+    }
+  }
+
+  if (!cvars::launch_module.empty()) {
+    return path + cvars::launch_module;
+  }
+
+  return path + "default.xex";
+}
+#endif
 
 static std::string format_version(xex2_version version) {
   // fmt::format doesn't like bit fields
@@ -820,6 +979,7 @@ X_STATUS Emulator::CompleteLaunch(const std::filesystem::path& path,
     }
     game_config_load_callback_loop_next_index_ = SIZE_MAX;
 
+#ifdef XE_HAS_XDBF_UTILS
     const kernel::util::XdbfGameData db = kernel_state_->module_xdbf(module);
     if (db.is_valid()) {
       XLanguage language =
@@ -844,6 +1004,46 @@ X_STATUS Emulator::CompleteLaunch(const std::filesystem::path& path,
         display_window_->SetIcon(icon_block.buffer, icon_block.size);
       }
     }
+#else
+    const auto db = kernel_state_->module_xdbf(module);
+
+    game_info_database_ =
+        std::make_unique<kernel::util::GameInfoDatabase>(db.get());
+    kernel_state_->xam_state()->LoadSpaInfo(db.get());
+
+    kernel_state_->xam_state()->user_tracker()->AddTitleToPlayedList();
+
+    if (game_info_database_->IsValid()) {
+      title_name_ = game_info_database_->GetTitleName(static_cast<XLanguage>(
+          kernel_state_->xconfig()->ReadSetting<uint32_t>(
+              kernel::XCONFIG_USER_CATEGORY, kernel::XCONFIG_USER_LANGUAGE)));
+      XELOGI("Title name: {}", title_name_);
+
+      // Show achievments data
+      tabulate::Table table;
+      table.format().multi_byte_characters(true);
+      table.add_row({"ID", "Title", "Description", "Type", "Gamerscore"});
+
+      const std::vector<kernel::util::GameInfoDatabase::Achievement>
+          achievement_list = game_info_database_->GetAchievements();
+      for (const kernel::util::GameInfoDatabase::Achievement& entry :
+           achievement_list) {
+        const std::string type = GetAchievementTypeName(
+            kernel::xam::GetAchievementType(entry.flags));
+
+        table.add_row({fmt::format("{}", entry.id), entry.label,
+                       entry.description, type,
+                       fmt::format("{}", entry.gamerscore)});
+      }
+      XELOGI("\n-------------------- ACHIEVEMENTS --------------------\n{}",
+             table.str());
+
+      auto icon_block = game_info_database_->GetIcon();
+      if (!icon_block.empty()) {
+        display_window_->SetIcon(icon_block.data(), icon_block.size());
+      }
+    }
+#endif
   }
 
   // Initializing the shader storage in a blocking way so the user doesn't miss

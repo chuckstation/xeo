@@ -20,6 +20,38 @@ message(STATUS "XENIA_ROOT : ${XENIA_ROOT}")
 message(STATUS "XE_SRC     : ${XE_SRC}")
 message(STATUS "XE_3P      : ${XE_3P}")
 
+# Detect capabilities dynamically from upstream headers to support multiple versions of xenia-upstream
+if(EXISTS "${XE_SRC}/xenia/base/threading.h")
+  file(READ "${XE_SRC}/xenia/base/threading.h" THREADING_H_CONTENT)
+  if(THREADING_H_CONTENT MATCHES "EventInfo")
+    add_compile_definitions(XE_HAS_EVENT_INFO=1)
+    message(STATUS "Detected EventInfo in threading.h, defining XE_HAS_EVENT_INFO=1")
+  endif()
+endif()
+
+if(EXISTS "${XE_SRC}/xenia/base/logging.h")
+  file(READ "${XE_SRC}/xenia/base/logging.h" LOGGING_H_CONTENT)
+  if(LOGGING_H_CONTENT MATCHES "log_mask")
+    add_compile_definitions(XE_LOGGING_HAS_LOG_MASK=1)
+    message(STATUS "Detected log_mask in logging.h, defining XE_LOGGING_HAS_LOG_MASK=1")
+  endif()
+endif()
+
+if(EXISTS "${XE_SRC}/xenia/kernel/util/gameinfo_utils.h")
+  add_compile_definitions(XE_HAS_GAMEINFO_UTILS=1)
+  message(STATUS "Detected gameinfo_utils.h, defining XE_HAS_GAMEINFO_UTILS=1")
+endif()
+
+if(EXISTS "${XE_SRC}/xenia/kernel/util/xdbf_utils.h")
+  add_compile_definitions(XE_HAS_XDBF_UTILS=1)
+  message(STATUS "Detected xdbf_utils.h, defining XE_HAS_XDBF_UTILS=1")
+endif()
+
+if(EXISTS "${XE_SRC}/xenia/vfs/devices/stfs_container_device.h")
+  add_compile_definitions(XE_HAS_STFS_CONTAINER_DEVICE=1)
+  message(STATUS "Detected stfs_container_device.h, defining XE_HAS_STFS_CONTAINER_DEVICE=1")
+endif()
+
 # ---------------------------------------------------------------------------
 # Compiler flags
 # ---------------------------------------------------------------------------
@@ -56,6 +88,7 @@ add_compile_definitions(
 
   # Third-party lib config
   FMT_HEADER_ONLY=1
+  VULKAN_HPP_NO_TO_STRING=1
   CAPSTONE_X86_ATT_DISABLE=1
   CAPSTONE_DIET_NO=1
   CAPSTONE_X86_REDUCE_NO=1
@@ -113,6 +146,7 @@ include_directories(
   "${XE_3P}/date/include"
   "${XE_3P}/llvm/include"
   "${XE_3P}/FFmpeg"
+  "${XE_3P}/ffmpeg-xenia"
   "${CMAKE_CURRENT_SOURCE_DIR}/jni"
   "${CMAKE_CURRENT_SOURCE_DIR}/custom_include"
 )
