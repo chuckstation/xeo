@@ -105,6 +105,7 @@ def main():
             "-S", spirv_stage,
             "-o", glslang_spv,
             "-V",
+            "--target-env", "vulkan1.1",
         ]
         if src_is_xesl:
             glslang_args.append(f"-I{src_dir}")
@@ -119,7 +120,7 @@ def main():
 
         # Step 2: spirv-opt
         result = subprocess.run([
-            spirv_opt, "-O", "-O",
+            spirv_opt, "-O",
             glslang_spv, "-o", opt_spv,
         ], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
         if result.returncode != 0:
