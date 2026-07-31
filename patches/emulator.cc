@@ -53,6 +53,7 @@
 #include "xenia/ui/imgui_drawer.h"
 #include "xenia/ui/window.h"
 #include "xenia/ui/windowed_app_context.h"
+#include "xenia/ui/file_picker.h"
 #include "xenia/vfs/devices/disc_image_device.h"
 #include "xenia/vfs/devices/host_path_device.h"
 #include "xenia/vfs/devices/null_device.h"
@@ -62,6 +63,12 @@
 #include "xenia/vfs/devices/xcontent_container_device.h"
 #endif
 #include "xenia/vfs/virtual_file_system.h"
+#include "third_party/zarchive/include/zarchive/zarchivecommon.h"
+#include "third_party/zarchive/include/zarchive/zarchivewriter.h"
+#include "third_party/zarchive/src/sha_256.h"
+#include "xenia/vfs/devices/disc_zarchive_device.h"
+#include <regex>
+#include "xenia/ui/imgui_host_notification.h"
 
 #if XE_ARCH_AMD64
 #include "xenia/cpu/backend/x64/x64_backend.h"
@@ -78,6 +85,12 @@ DEFINE_string(
     "or the module specified by the game. Leave blank to launch the default "
     "module.",
     "General");
+
+DEFINE_bool(allow_game_relative_writes, false,
+            "Not useful to non-developers. Allows code to write to paths "
+            "relative to game://. Used for "
+            "generating test data to compare with original hardware. ",
+            "General");
 
 namespace xe {
 
@@ -387,6 +400,137 @@ X_STATUS Emulator::LaunchDiscImage(const std::filesystem::path& path) {
   return CompleteLaunch(path, module_path);
 }
 #else
+
+const std::unique_ptr<vfs::Device> Emulator::CreateVfsDevice(
+    const std::filesystem::path& path, const std::string_view mount_path) {
+  // Must check if the type has changed e.g. XamSwapDisc
+  switch (GetFileSignature(path)) {
+    case FileSignatureType::XEX1:
+    case FileSignatureType::XEX2:
+    case FileSignatureType::ELF: {
+      auto parent_path = path.parent_path();
+      return std::make_unique<vfs::HostPathDevice>(
+          mount_path, parent_path, !cvars::allow_game_relative_writes);
+    } break;
+    case FileSignatureType::LIVE:
+    case FileSignatureType::CON:
+    case FileSignatureType::PIRS: {
+      return vfs::XContentContainerDevice::CreateContentDevice(mount_path,
+                                                               path);
+    } break;
+    case FileSignatureType::XISO: {
+      return std::make_unique<vfs::DiscImageDevice>(mount_path, path);
+    } break;
+    case FileSignatureType::ZAR: {
+      return std::make_unique<vfs::DiscZarchiveDevice>(mount_path, path);
+    } break;
+    case FileSignatureType::EXE:
+    case FileSignatureType::Unknown:
+    default:
+      return nullptr;
+      break;
+  }
+}
+
+X_STATUS Emulator::MountPath(const std::filesystem::path& path,
+                             const std::string_view mount_path) {
+  auto device = CreateVfsDevice(path, mount_path);
+  if (!device || !device->Initialize()) {
+    XELOGE(
+        "Unable to mount the selected file, it is an unsupported format or "
+        "corrupted.");
+    return X_STATUS_NO_SUCH_FILE;
+  }
+  if (!file_system_->RegisterDevice(std::move(device))) {
+    XELOGE("Unable to register the input file to {}.", mount_path);
+    return X_STATUS_NO_SUCH_FILE;
+  }
+
+  file_system_->UnregisterSymbolicLink(kDefaultPartitionSymbolicLink);
+  file_system_->UnregisterSymbolicLink(kDefaultGameSymbolicLink);
+  file_system_->UnregisterSymbolicLink("plugins:");
+
+  // Create symlinks to the device.
+  file_system_->RegisterSymbolicLink(kDefaultGameSymbolicLink, mount_path);
+  file_system_->RegisterSymbolicLink(kDefaultPartitionSymbolicLink, mount_path);
+
+  return X_STATUS_SUCCESS;
+}
+
+Emulator::FileSignatureType Emulator::GetFileSignature(
+    const std::filesystem::path& path) {
+  FILE* file = xe::filesystem::OpenFile(path, "rb");
+
+  if (!file) {
+    return FileSignatureType::Unknown;
+  }
+
+  const uint64_t file_size = std::filesystem::file_size(path);
+  constexpr int64_t header_size = 4;
+
+  if (file_size < header_size) {
+    return FileSignatureType::Unknown;
+  }
+
+  char file_magic[header_size];
+  fread(file_magic, sizeof(file_magic), 1, file);
+
+  fourcc_t magic_value =
+      make_fourcc(file_magic[0], file_magic[1], file_magic[2], file_magic[3]);
+
+  fclose(file);
+
+  switch (magic_value) {
+    case xe::cpu::kXEX1Signature:
+      return FileSignatureType::XEX1;
+    case xe::cpu::kXEX2Signature:
+      return FileSignatureType::XEX2;
+    case xe::vfs::kCONSignature:
+      return FileSignatureType::CON;
+    case xe::vfs::kLIVESignature:
+      return FileSignatureType::LIVE;
+    case xe::vfs::kPIRSSignature:
+      return FileSignatureType::PIRS;
+    case xe::vfs::kXSFSignature:
+      return FileSignatureType::XISO;
+    case xe::cpu::kElfSignature:
+      return FileSignatureType::ELF;
+    default:
+      break;
+  }
+
+  magic_value = make_fourcc(file_magic[0], file_magic[1], 0, 0);
+
+  if (xe::kernel::kEXESignature == magic_value) {
+    return FileSignatureType::EXE;
+  }
+
+  file = xe::filesystem::OpenFile(path, "rb");
+  xe::filesystem::Seek(file, -header_size, SEEK_END);
+  fread(file_magic, 1, header_size, file);
+  fclose(file);
+
+  magic_value =
+      make_fourcc(file_magic[0], file_magic[1], file_magic[2], file_magic[3]);
+
+  if (xe::vfs::kZarMagic == magic_value) {
+    return FileSignatureType::ZAR;
+  }
+
+  // Check if XISO
+  std::unique_ptr<vfs::Device> device =
+      std::make_unique<vfs::DiscImageDevice>("", path);
+
+  XELOGI("Checking for XISO");
+
+  if (device->Initialize()) {
+    return FileSignatureType::XISO;
+  }
+
+  XELOGE("{}: {} ({:08X})", __func__, path.extension(), magic_value);
+  return FileSignatureType::Unknown;
+}
+
 X_STATUS Emulator::LaunchPath(const std::filesystem::path& path) {
   X_STATUS mount_result = X_STATUS_SUCCESS;
 
@@ -513,6 +657,435 @@ X_STATUS Emulator::LaunchDefaultModule(const std::filesystem::path& path) {
   return result;
 }
 #endif
+
+X_STATUS Emulator::ProcessContentPackageHeader(
+    const std::filesystem::path& path, ContentInstallEntry& installation_info) {
+  installation_info.name_ = "Invalid Content Package!";
+  installation_info.content_type_ = XContentType::kInvalid;
+  installation_info.data_installation_path_ = xe::path_to_utf8(path.filename());
+
+  const auto header = vfs::XContentContainerDevice::ReadContainerHeader(path);
+
+  if (!header || !header->content_header.is_magic_valid()) {
+    installation_info.installation_state_ = InstallState::failed;
+    installation_info.installation_result_ = X_STATUS_INVALID_PARAMETER;
+    installation_info.installation_error_message_ = "Invalid Package Type!";
+    XELOGE("Failed to initialize device");
+    return X_STATUS_INVALID_PARAMETER;
+  }
+
+  // Always install savefiles to user signed to slot 0.
+  const auto profile =
+      kernel_state_->xam_state()->profile_manager()->GetProfile(
+          static_cast<uint8_t>(0));
+
+  uint64_t xuid = header->content_metadata.profile_id;
+  if (header->content_metadata.content_type == XContentType::kSavedGame &&
+      profile) {
+    xuid = profile->xuid();
+  }
+
+  installation_info.data_installation_path_ = fmt::format(
+      "{:016X}/{:08X}/{:08X}/{}", xuid,
+      header->content_metadata.execution_info.title_id.get(),
+      static_cast<uint32_t>(header->content_metadata.content_type.get()),
+      path.filename());
+
+  installation_info.header_installation_path_ = fmt::format(
+      "{:016X}/{:08X}/Headers/{:08X}/{}", xuid,
+      header->content_metadata.execution_info.title_id.get(),
+      static_cast<uint32_t>(header->content_metadata.content_type.get()),
+      path.filename());
+
+  installation_info.name_ =
+      xe::to_utf8(header->content_metadata.display_name(XLanguage::kEnglish));
+  installation_info.content_type_ =
+      static_cast<XContentType>(header->content_metadata.content_type);
+  installation_info.content_size_ = header->content_metadata.content_size;
+  installation_info.installation_state_ = InstallState::pending;
+
+  installation_info.icon_ = imgui_drawer_->LoadImGuiIcon(
+      std::span<const uint8_t>(header->content_metadata.title_thumbnail,
+                               header->content_metadata.title_thumbnail_size));
+  return X_STATUS_SUCCESS;
+}
+
+X_STATUS Emulator::InstallContentPackage(
+    const std::filesystem::path& path, ContentInstallEntry& installation_info) {
+  installation_info.installation_state_ = InstallState::preparing;
+
+  std::unique_ptr<vfs::XContentContainerDevice> device =
+      vfs::XContentContainerDevice::CreateContentDevice("", path);
+
+  if (!device || !device->Initialize()) {
+    installation_info.installation_state_ = InstallState::failed;
+    installation_info.installation_error_message_ =
+        "Device initialization failed!";
+    installation_info.installation_result_ = X_STATUS_ACCESS_DENIED;
+    XELOGE("Failed to initialize device");
+    return X_STATUS_INVALID_PARAMETER;
+  }
+
+  const std::filesystem::path installation_path =
+      content_root() / installation_info.data_installation_path_;
+
+  const std::filesystem::path header_path =
+      content_root() / installation_info.header_installation_path_;
+
+  if (!std::filesystem::exists(content_root())) {
+    const std::error_code ec = xe::filesystem::CreateFolder(content_root());
+    if (ec) {
+      installation_info.installation_state_ = InstallState::failed;
+      installation_info.installation_error_message_ = ec.message();
+      installation_info.installation_result_ = X_STATUS_ACCESS_DENIED;
+      return X_STATUS_ACCESS_DENIED;
+    }
+  }
+
+  const auto disk_space = std::filesystem::space(content_root());
+  if (disk_space.available < installation_info.content_size_ * 1.1f) {
+    installation_info.installation_state_ = InstallState::failed;
+    installation_info.installation_error_message_ = "Insufficient disk space!";
+    installation_info.installation_result_ = X_STATUS_DISK_FULL;
+    return X_STATUS_DISK_FULL;
+  }
+
+  if (std::filesystem::exists(installation_path)) {
+    // TODO(Gliniak): Popup
+    // Do you want to overwrite already existing data?
+  } else {
+    std::error_code error_code;
+    std::filesystem::create_directories(installation_path, error_code);
+    if (error_code) {
+      installation_info.installation_state_ = InstallState::failed;
+      installation_info.installation_error_message_ =
+          "Cannot Create Content Directory!";
+      installation_info.installation_result_ = error_code.value();
+      return error_code.value();
+    }
+  }
+
+  installation_info.content_size_ = device->data_size();
+  installation_info.installation_state_ = InstallState::installing;
+
+  vfs::VirtualFileSystem::ExtractContentHeader(device.get(), header_path);
+
+  X_STATUS error_code = vfs::VirtualFileSystem::ExtractContentFiles(
+      device.get(), installation_path,
+      installation_info.currently_installed_size_);
+  if (error_code != X_ERROR_SUCCESS) {
+    installation_info.installation_state_ = InstallState::failed;
+    return error_code;
+  }
+
+  installation_info.installation_state_ = InstallState::installed;
+  installation_info.currently_installed_size_ = installation_info.content_size_;
+  kernel_state()->BroadcastNotification(kXNotificationLiveContentInstalled, 0);
+
+  if (installation_info.content_type_ == XContentType::kProfile) {
+    kernel_state_->xam_state()->profile_manager()->ReloadProfiles();
+  }
+
+  return error_code;
+}
+
+X_STATUS Emulator::ExtractZarchivePackage(
+    const std::filesystem::path& path,
+    const std::filesystem::path& extract_dir) {
+  std::unique_ptr<vfs::Device> device =
+      std::make_unique<vfs::DiscZarchiveDevice>("", path);
+  if (!device->Initialize()) {
+    XELOGE("Failed to initialize device");
+    return X_STATUS_INVALID_PARAMETER;
+  }
+
+  if (std::filesystem::exists(extract_dir)) {
+    // TODO(Gliniak): Popup
+    // Do you want to overwrite already existing data?
+  } else {
+    std::error_code error_code;
+    std::filesystem::create_directories(extract_dir, error_code);
+    if (error_code) {
+      return error_code.value();
+    }
+  }
+
+  uint64_t progress = 0;
+  return vfs::VirtualFileSystem::ExtractContentFiles(device.get(), extract_dir,
+                                                     progress);
+}
+
+X_STATUS Emulator::CreateZarchivePackage(
+    const std::filesystem::path& inputDirectory,
+    const std::filesystem::path& outputFile) {
+  std::vector<uint8_t> buffer;
+  buffer.resize(64 * 1024);
+
+  std::error_code ec;
+  PackContext packContext;
+  packContext.outputFilePath = outputFile;
+
+  ZArchiveWriter zWriter(
+      [](int32_t partIndex, void* ctx) {
+        PackContext* packContext = reinterpret_cast<PackContext*>(ctx);
+        packContext->currentOutputFile =
+            std::ofstream(packContext->outputFilePath, std::ios::binary);
+
+        if (!packContext->currentOutputFile.is_open()) {
+          XELOGI("Failed to create output file: {}\n",
+                 packContext->outputFilePath.string());
+          packContext->hasError = true;
+        }
+      },
+      [](const void* data, size_t length, void* ctx) {
+        PackContext* packContext = reinterpret_cast<PackContext*>(ctx);
+        packContext->currentOutputFile.write(
+            reinterpret_cast<const char*>(data), length);
+      },
+      &packContext);
+
+  if (packContext.hasError) {
+    return X_STATUS_UNSUCCESSFUL;
+  }
+
+  for (auto const& dirEntry :
+       std::filesystem::recursive_directory_iterator(inputDirectory)) {
+    std::filesystem::path pathEntry =
+        std::filesystem::relative(dirEntry.path(), inputDirectory, ec);
+
+    if (ec) {
+      XELOGI("Failed to get relative path {}\n", pathEntry.string());
+      return X_STATUS_UNSUCCESSFUL;
+    }
+
+    if (dirEntry.is_directory()) {
+      if (!zWriter.MakeDir(pathEntry.generic_string().c_str(), false)) {
+        XELOGI("Failed to create directory {}\n", pathEntry.string());
+        return X_STATUS_UNSUCCESSFUL;
+      }
+    } else if (dirEntry.is_regular_file()) {
+      // Don't pack itself to prevent infinite packing.
+      if (dirEntry == outputFile) {
+        continue;
+      }
+
+      XELOGI("Adding file: {}\n", pathEntry.string());
+
+      if (!zWriter.StartNewFile(pathEntry.generic_string().c_str())) {
+        XELOGI("Failed to create archive file {}\n", pathEntry.string());
+        return X_STATUS_UNSUCCESSFUL;
+      }
+
+      std::filesystem::path file_to_pack_path = inputDirectory / pathEntry;
+      FILE* file = xe::filesystem::OpenFile(file_to_pack_path, "rb");
+
+      if (!file) {
+        XELOGI("Failed to open input file {}\n", pathEntry.string());
+        return X_STATUS_UNSUCCESSFUL;
+      }
+
+      const uint64_t file_size = std::filesystem::file_size(file_to_pack_path);
+      uint64_t total_bytes_read = 0;
+
+      while (total_bytes_read < file_size) {
+        uint64_t bytes_read = fread(buffer.data(), 1, buffer.size(), file);
+
+        total_bytes_read += bytes_read;
+
+        zWriter.AppendData(buffer.data(), bytes_read);
+      }
+
+      fclose(file);
+    }
+
+    if (packContext.hasError) {
+      return X_STATUS_UNSUCCESSFUL;
+    }
+  }
+
+  zWriter.Finalize();
+
+  return X_STATUS_SUCCESS;
+}
+
+const std::filesystem::path Emulator::GetNewDiscPath(
+    std::string window_message) {
+  std::filesystem::path path = "";
+
+  auto file_picker = xe::ui::FilePicker::Create();
+  file_picker->set_mode(ui::FilePicker::Mode::kOpen);
+  file_picker->set_type(ui::FilePicker::Type::kFile);
+  file_picker->set_multi_selection(false);
+  file_picker->set_title(!window_message.empty() ? window_message
+                                                 : "Select Content Package");
+  file_picker->set_extensions({
+      {"Xbox 360 Files (*.iso, *.xex, *.zar, *.*)", "*.iso;*.xex;*.zar;*"},
+  });
+
+  if (file_picker->Show()) {
+    auto selected_files = file_picker->selected_files();
+    if (!selected_files.empty()) {
+      path = selected_files.front();
+    }
+  }
+
+  return path;
+}
+
+X_STATUS Emulator::DataMigration(const uint64_t xuid) {
+  uint32_t failure_count = 0;
+  const std::string xuid_string = fmt::format("{:016X}", xuid);
+  const std::string common_xuid_string = fmt::format("{:016X}", 0);
+  const std::filesystem::path path_to_profile_data =
+      content_root_ / xuid_string / "FFFE07D1" / "00010000" / xuid_string;
+  // Filter directories inside. First we need to find any content type
+  // directories.
+  // Savefiles must go to user specific directory
+  // Everything else goes to common
+  const auto titles_to_move = xe::filesystem::FilterByName(
+      xe::filesystem::ListDirectories(content_root_),
+      std::regex("[A-F0-9]{8}"));
+
+  for (const auto& title : titles_to_move) {
+    if (xe::path_to_utf8(title.name) == "FFFE07D1" ||
+        xe::path_to_utf8(title.name) == "00000000") {
+      // SKip any dashboard/profile related data that was previously installed
+      continue;
+    }
+
+    const auto content_type_dirs = xe::filesystem::FilterByName(
+        xe::filesystem::ListDirectories(title.path / title.name),
+        std::regex("[A-F0-9]{8}"));
+
+    for (const auto& content_type : content_type_dirs) {
+      const std::string used_xuid =
+          xe::path_to_utf8(content_type.name) == "00000001"
+              ? xuid_string
+              : common_xuid_string;
+
+      const auto previous_path = content_root_ / title.name / content_type.name;
+      const auto path = content_root_ / used_xuid / title.name;
+
+      if (!std::filesystem::exists(path)) {
+        std::filesystem::create_directories(path);
+      }
+
+      std::error_code ec;
+      std::filesystem::rename(previous_path, path / content_type.name, ec);
+
+      if (ec) {
+        failure_count++;
+        XELOGW("{}: Moving from: {} to: {} failed! Error message: {} ({:08X})",
+               __func__, previous_path, path / content_type.name, ec.message(),
+               ec.value());
+      }
+    }
+    // Other directories:
+    // Headers - Just copy everything to both common and xuid locations
+    // profile - ?
+    if (std::filesystem::exists(title.path / title.name / "Headers")) {
+      const auto xuid_path =
+          content_root_ / xuid_string / title.name / "Headers";
+
+      std::filesystem::create_directories(xuid_path);
+
+      std::error_code ec;
+      // Copy to specific user
+      std::filesystem::copy(title.path / title.name / "Headers", xuid_path,
+                            std::filesystem::copy_options::recursive |
+                                std::filesystem::copy_options::skip_existing,
+                            ec);
+      if (ec) {
+        failure_count++;
+        XELOGW("{}: Copying from: {} to: {} failed! Error message: {} ({:08X})",
+               __func__, title.path / title.name / "Headers", xuid_path,
+               ec.message(), ec.value());
+      }
+
+      const auto header_types =
+          xe::filesystem::ListDirectories(title.path / title.name / "Headers");
+
+      if (!(header_types.size() == 1 &&
+            header_types.at(0).name == "00000001")) {
+        const auto common_path =
+            content_root_ / common_xuid_string / title.name / "Headers";
+
+        std::filesystem::create_directories(common_path);
+
+        // Copy to common, skip cases where only savefile header is available
+        std::filesystem::copy(title.path / title.name / "Headers", common_path,
+                              std::filesystem::copy_options::recursive |
+                                  std::filesystem::copy_options::skip_existing,
+                              ec);
+        if (ec) {
+          failure_count++;
+          XELOGW(
+              "{}: Copying from: {} to: {} failed! Error message: {} ({:08X})",
+              __func__, title.path / title.name / "Headers", common_path,
+              ec.message(), ec.value());
+        }
+      }
+
+      if (!ec) {
+        // Remove previous directory
+        std::error_code ec;
+        std::filesystem::remove_all(title.path / title.name / "Headers", ec);
+      }
+    }
+
+    if (std::filesystem::exists(title.path / title.name / "profile")) {
+      // Find directory with previous username. There should be only one!
+      const auto old_profile_data =
+          xe::filesystem::ListDirectories(title.path / title.name / "profile");
+
+      xe::filesystem::FileInfo entry_to_copy = xe::filesystem::FileInfo();
+      if (old_profile_data.size() != 1) {
+        for (const auto& entry : old_profile_data) {
+          if (entry.name == "User") {
+            entry_to_copy = entry;
+          }
+        }
+      } else {
+        entry_to_copy = old_profile_data.front();
+      }
+
+      const auto path_from =
+          title.path / title.name / "profile" / entry_to_copy.name;
+      std::error_code ec;
+      // Move files from inside to outside for convenience
+      std::filesystem::rename(path_from, path_to_profile_data / title.name, ec);
+      if (ec) {
+        failure_count++;
+        XELOGW("{}: Moving from: {} to: {} failed! Error message: {} ({:08X})",
+               __func__, path_from, path_to_profile_data / title.name,
+               ec.message(), ec.value());
+      } else {
+        std::error_code ec;
+        std::filesystem::remove_all(title.path / title.name / "profile", ec);
+      }
+    }
+
+    const auto remaining_file_list =
+        xe::filesystem::ListDirectories(title.path / title.name);
+
+    if (remaining_file_list.empty()) {
+      std::error_code ec;
+      std::filesystem::remove_all(title.path / title.name, ec);
+    }
+  }
+
+  std::string migration_status_message =
+      fmt::format("Migration finished with {} {}.", failure_count,
+                  failure_count == 1 ? "error" : "errors");
+
+  if (failure_count) {
+    migration_status_message.append(
+        " For more information check xenia.log file.");
+  }
+  new xe::ui::HostNotificationWindow(imgui_drawer_, "Migration Status",
+                                     migration_status_message, 0);
+  return X_STATUS_SUCCESS;
+}
 
 void Emulator::Pause() {
   if (paused_) {
