@@ -434,10 +434,14 @@ set(XE_PATCHER_SRCS
 # ---------------------------------------------------------------------------
 # Third-party: xbyak_aarch64 (ARM64 JIT / CPU feature detection)
 # ---------------------------------------------------------------------------
-set(XE_XBYAK_AARCH64_SRCS
-  ${XE_3P}/xbyak_aarch64/src/xbyak_aarch64_impl.cpp
-  ${XE_3P}/xbyak_aarch64/src/util_impl.cpp
-)
+if(XE_ARCH_ARM64_VAL)
+  set(XE_XBYAK_AARCH64_SRCS
+    ${XE_3P}/xbyak_aarch64/src/xbyak_aarch64_impl.cpp
+    ${XE_3P}/xbyak_aarch64/src/util_impl.cpp
+  )
+else()
+  set(XE_XBYAK_AARCH64_SRCS)
+endif()
 
 # ---------------------------------------------------------------------------
 # JNI bridge & Stubs (this repo)
