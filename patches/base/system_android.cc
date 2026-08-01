@@ -310,4 +310,6 @@ void ShowSimpleMessageBox(SimpleMessageBoxType type, std::string_view message) {
   }
 }
 
+bool IsUseNexusForGameBarEnabled() { return false; }
+
 }  // namespace xe

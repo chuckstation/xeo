@@ -519,6 +519,24 @@ void logging::AppendLogLine(LogLevel log_level, const char prefix_char,
 }
 #endif
 
+void FlushLog() {}
+
+namespace logging {
+
+void ToggleLogLevel() {
+  int32_t current = cvars::log_level;
+  cvars::log_level = (current + 1) % 4;
+}
+
+namespace internal {
+
+uint32_t GetLogLevel() {
+  return cvars::log_level;
+}
+
+}  // namespace internal
+}  // namespace logging
+
 void FatalError(const std::string_view str) {
   logging::AppendLogLine(LogLevel::Error, 'x', str);
 

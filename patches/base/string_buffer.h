@@ -47,14 +47,14 @@ class StringBuffer {
 
   template <typename... Args>
   void AppendFormat(const char* format, const Args&... args) {
-    auto s = fmt::format(fmt::runtime(format), args...);
+    auto s = fmt::vformat(format, fmt::make_format_args(args...));
     Append(s.c_str());
   }
 
 #ifdef __cpp_char8_t
   template <typename... Args>
   void AppendFormat(const char8_t* format, const Args&... args) {
-    auto s = fmt::format(fmt::runtime(reinterpret_cast<const char*>(format)), args...);
+    auto s = fmt::vformat(reinterpret_cast<const char*>(format), fmt::make_format_args(args...));
     Append(s.c_str());
   }
 #endif

@@ -131,8 +131,13 @@ include_directories(
   "${XE_3P}/xxhash"
   "${XE_3P}/capstone/include"
   "${XE_3P}/xbyak"
+  "${XE_3P}/xbyak_aarch64"
+  "${XE_3P}/xbyak_aarch64/xbyak_aarch64"
   "${XE_3P}/imgui"
   "${XE_3P}/cpptoml/include"
+  "${XE_3P}/tomlplusplus/include"
+  "${XE_3P}/zarchive/include"
+  "${XE_3P}/zstd/lib"
   "${XE_3P}/snappy"
   "${XE_3P}/cxxopts/include"
   "${XE_3P}/dxbc"
@@ -297,6 +302,8 @@ set(XE_APP_SRCS
   ${XE_SRC}/xenia/app/xenia_main.cc
   ${XE_SRC}/xenia/app/emulator_window.cc
   ${XE_SRC}/xenia/app/discord/discord_presence.cc
+  ${XE_SRC}/xenia/app/console_settings_dialog.cc
+  ${XE_SRC}/xenia/app/profile_dialogs.cc
 )
 
 # ---------------------------------------------------------------------------
@@ -406,6 +413,37 @@ foreach(_sf IN LISTS XE_GLSLANG_SPIRV_SRCS)
 endforeach()
 
 # ---------------------------------------------------------------------------
+# Third-party: zarchive (archive decompression)
+# ---------------------------------------------------------------------------
+set(XE_ZARCHIVE_SRCS
+  ${XE_3P}/zarchive/src/zarchivereader.cpp
+  ${XE_3P}/zarchive/src/zarchivewriter.cpp
+  ${XE_3P}/zarchive/src/sha_256.c
+  ${XE_3P}/pugixml/src/pugixml.cpp
+)
+
+# ---------------------------------------------------------------------------
+# xenia/patcher — Game patching system
+# ---------------------------------------------------------------------------
+set(XE_PATCHER_SRCS
+  ${XE_SRC}/xenia/patcher/patch_db.cc
+  ${XE_SRC}/xenia/patcher/patcher.cc
+  ${XE_SRC}/xenia/patcher/plugin_loader.cc
+)
+
+# ---------------------------------------------------------------------------
+# Third-party: xbyak_aarch64 (ARM64 JIT / CPU feature detection)
+# ---------------------------------------------------------------------------
+if(XE_ARCH_ARM64_VAL)
+  set(XE_XBYAK_AARCH64_SRCS
+    ${XE_3P}/xbyak_aarch64/src/xbyak_aarch64_impl.cpp
+    ${XE_3P}/xbyak_aarch64/src/util_impl.cpp
+  )
+else()
+  set(XE_XBYAK_AARCH64_SRCS)
+endif()
+
+# ---------------------------------------------------------------------------
 # JNI bridge & Stubs (this repo)
 # ---------------------------------------------------------------------------
 set(XE_JNI_SRCS
@@ -414,6 +452,7 @@ set(XE_JNI_SRCS
   ${CMAKE_CURRENT_SOURCE_DIR}/discord_stubs.c
   ${CMAKE_CURRENT_SOURCE_DIR}/ffmpeg_stubs.c
   ${CMAKE_CURRENT_SOURCE_DIR}/debug_window_stubs.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/stb_impl.cc
   ${XENIA_ROOT}/src/xenia/hid/android_input_driver.cc
 )
 
@@ -433,6 +472,7 @@ add_library(xenia-android SHARED
   ${XE_HID_SRCS}
   ${XE_HID_NOP_SRCS}
   ${XE_KERNEL_SRCS}
+  ${XE_PATCHER_SRCS}
   ${XE_VFS_SRCS}
   ${XE_UI_SRCS}
   ${XE_UI_VULKAN_SRCS}
@@ -446,6 +486,8 @@ add_library(xenia-android SHARED
   ${XE_IMGUI_SRCS}
   ${XE_CAPSTONE_SRCS}
   ${XE_GLSLANG_SPIRV_SRCS}
+  ${XE_ZARCHIVE_SRCS}
+  ${XE_XBYAK_AARCH64_SRCS}
   # JNI bridge
   ${XE_JNI_SRCS}
 )
@@ -484,6 +526,7 @@ target_link_libraries(xenia-android
   ${LIB_EGL}
   ${LIB_DL}
   ${LIB_M}
+  z
 )
 
 # ---------------------------------------------------------------------------

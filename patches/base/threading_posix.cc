@@ -159,6 +159,12 @@ void Sleep(std::chrono::microseconds duration) {
   } while (ret == -1 && errno == EINTR);
 }
 
+void NanoSleep(int64_t duration) { Sleep(std::chrono::nanoseconds(duration)); }
+
+void NanoSleepPrecise(int64_t ns) {
+  NanoSleep(ns);
+}
+
 // TODO(bwrsandman) Implement by allowing alert interrupts from IO operations
 thread_local bool alertable_state_ = false;
 SleepResult AlertableSleep(std::chrono::microseconds duration) {

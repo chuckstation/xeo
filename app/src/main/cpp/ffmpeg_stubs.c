@@ -17,6 +17,21 @@ int avcodec_open2(void* avctx, const void* codec, void** options) { return 0; }
 int avcodec_receive_frame(void* avctx, void* frame) { return 0; }
 int avcodec_send_packet(void* avctx, const void* avpkt) { return 0; }
 
+void* av_md5_alloc(void) { return NULL; }
+void av_md5_init(void* ctx) {}
+void av_md5_update(void* ctx, const unsigned char* src, size_t len) {}
+void av_md5_final(void* ctx, unsigned char* dst) {}
+
+void* av_sha512_alloc(void) { return NULL; }
+void av_sha512_init(void* ctx, int bits) {}
+void av_sha512_update(void* ctx, const unsigned char* src, size_t len) {}
+void av_sha512_final(void* ctx, unsigned char* dst) {}
+
+void avcodec_free_context(void** avctx) {}
+void* av_buffer_alloc(size_t size) { return NULL; }
+int av_strerror(int errnum, char* errbuf, size_t errbuf_size) { return 0; }
+void av_channel_layout_default(void* ch_layout, int nb_channels) {}
+
 #ifdef __cplusplus
 }
 #endif

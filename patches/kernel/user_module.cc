@@ -19,7 +19,7 @@
 #include <filesystem>
 #include <algorithm>
 #include <fstream>
-#include "third_party/cpptoml/include/cpptoml.h"
+#include "third_party/tomlplusplus/include/toml++/toml.hpp"
 #include "xenia/config.h"
 
 #include "third_party/fmt/include/fmt/format.h"
@@ -40,21 +40,20 @@ static void WriteGuestMemory(xe::Memory* memory, uint32_t address, T value) {
 
 static void ApplyPatchFile(xe::Memory* memory, const std::filesystem::path& patch_path) {
   try {
-    std::ifstream file(patch_path, std::ios::in | std::ios::binary);
-    if (!file.is_open()) return;
-    cpptoml::parser p(file);
-    std::shared_ptr<cpptoml::table> patch_toml = p.parse();
+    if (!std::filesystem::exists(patch_path)) return;
+    auto patch_toml = toml::parse_file(xe::path_to_utf8(patch_path));
 
-    if (!patch_toml) return;
-    if (!patch_toml->contains("patch")) return;
-    auto patches = patch_toml->get_table_array("patch");
+    auto patches = patch_toml["patch"].as_array();
     if (!patches) return;
 
-    for (const auto& patch : *patches) {
-      bool is_enabled = patch->get_as<bool>("is_enabled").value_or(false);
+    for (const auto& patch_node : *patches) {
+      auto patch = patch_node.as_table();
+      if (!patch) continue;
+
+      bool is_enabled = (*patch)["is_enabled"].value_or(false);
       if (!is_enabled) continue;
 
-      std::string patch_name = patch->get_as<std::string>("name").value_or("Unnamed");
+      std::string patch_name = (*patch)["name"].value_or(std::string("Unnamed"));
       XELOGI("Applying game patch: {}", patch_name);
 
       std::vector<std::pair<std::string, size_t>> types = {
@@ -64,105 +63,70 @@ static void ApplyPatchFile(xe::Memory* memory, const std::filesystem::path& patc
 
       for (const auto& type_pair : types) {
         const std::string& type_name = type_pair.first;
-        if (patch->contains(type_name)) {
-          auto entries = patch->get_table_array(type_name);
-          if (!entries) continue;
+        auto entries = (*patch)[type_name].as_array();
+        if (!entries) continue;
 
-          for (const auto& entry : *entries) {
-            uint64_t address = 0;
-            auto addr_opt = entry->get_as<int64_t>("address");
-            if (addr_opt) {
-              address = *addr_opt;
+        for (const auto& entry_node : *entries) {
+          auto entry = entry_node.as_table();
+          if (!entry) continue;
+
+          uint64_t address = 0;
+          auto addr_opt = (*entry)["address"].value<int64_t>();
+          if (addr_opt) {
+            address = static_cast<uint64_t>(*addr_opt);
+          } else {
+            auto addr_str = (*entry)["address"].value<std::string>();
+            if (addr_str) {
+              address = std::stoull(*addr_str, nullptr, 16);
+            }
+          }
+
+          if (!address) continue;
+
+          auto get_value = [&](uint64_t& out_value) -> bool {
+            auto val_opt = (*entry)["value"].value<int64_t>();
+            if (val_opt) {
+              out_value = static_cast<uint64_t>(*val_opt);
+              return true;
             } else {
-              auto addr_str = entry->get_as<std::string>("address");
-              if (addr_str) {
-                address = std::stoull(*addr_str, nullptr, 16);
+              auto val_str = (*entry)["value"].value<std::string>();
+              if (val_str) {
+                out_value = std::stoull(*val_str, nullptr, 16);
+                return true;
               }
             }
+            return false;
+          };
 
-            if (!address) continue;
+          uint64_t value = 0;
+          if (!get_value(value)) continue;
 
-            if (type_name == "be8" || type_name == "le8") {
-              uint8_t value = 0;
-              auto val_opt = entry->get_as<int64_t>("value");
-              if (val_opt) {
-                value = *val_opt;
-              } else {
-                auto val_str = entry->get_as<std::string>("value");
-                if (val_str) value = std::stoul(*val_str, nullptr, 16);
-              }
-              WriteGuestMemory<uint8_t>(memory, address, value);
-            } else if (type_name == "be16") {
-              uint16_t value = 0;
-              auto val_opt = entry->get_as<int64_t>("value");
-              if (val_opt) {
-                value = *val_opt;
-              } else {
-                auto val_str = entry->get_as<std::string>("value");
-                if (val_str) value = std::stoul(*val_str, nullptr, 16);
-              }
-              xe::be<uint16_t> be_val = value;
-              WriteGuestMemory<xe::be<uint16_t>>(memory, address, be_val);
-            } else if (type_name == "le16") {
-              uint16_t value = 0;
-              auto val_opt = entry->get_as<int64_t>("value");
-              if (val_opt) {
-                value = *val_opt;
-              } else {
-                auto val_str = entry->get_as<std::string>("value");
-                if (val_str) value = std::stoul(*val_str, nullptr, 16);
-              }
-              xe::le<uint16_t> le_val = value;
-              WriteGuestMemory<xe::le<uint16_t>>(memory, address, le_val);
-            } else if (type_name == "be32") {
-              uint32_t value = 0;
-              auto val_opt = entry->get_as<int64_t>("value");
-              if (val_opt) {
-                value = *val_opt;
-              } else {
-                auto val_str = entry->get_as<std::string>("value");
-                if (val_str) value = std::stoul(*val_str, nullptr, 16);
-              }
-              xe::be<uint32_t> be_val = value;
-              WriteGuestMemory<xe::be<uint32_t>>(memory, address, be_val);
-            } else if (type_name == "le32") {
-              uint32_t value = 0;
-              auto val_opt = entry->get_as<int64_t>("value");
-              if (val_opt) {
-                value = *val_opt;
-              } else {
-                auto val_str = entry->get_as<std::string>("value");
-                if (val_str) value = std::stoul(*val_str, nullptr, 16);
-              }
-              xe::le<uint32_t> le_val = value;
-              WriteGuestMemory<xe::le<uint32_t>>(memory, address, le_val);
-            } else if (type_name == "be64") {
-              uint64_t value = 0;
-              auto val_opt = entry->get_as<int64_t>("value");
-              if (val_opt) {
-                value = *val_opt;
-              } else {
-                auto val_str = entry->get_as<std::string>("value");
-                if (val_str) value = std::stoull(*val_str, nullptr, 16);
-              }
-              xe::be<uint64_t> be_val = value;
-              WriteGuestMemory<xe::be<uint64_t>>(memory, address, be_val);
-            } else if (type_name == "le64") {
-              uint64_t value = 0;
-              auto val_opt = entry->get_as<int64_t>("value");
-              if (val_opt) {
-                value = *val_opt;
-              } else {
-                auto val_str = entry->get_as<std::string>("value");
-                if (val_str) value = std::stoull(*val_str, nullptr, 16);
-              }
-              xe::le<uint64_t> le_val = value;
-              WriteGuestMemory<xe::le<uint64_t>>(memory, address, le_val);
-            }
+          if (type_name == "be8" || type_name == "le8") {
+            WriteGuestMemory<uint8_t>(memory, address, static_cast<uint8_t>(value));
+          } else if (type_name == "be16") {
+            xe::be<uint16_t> be_val = static_cast<uint16_t>(value);
+            WriteGuestMemory<xe::be<uint16_t>>(memory, address, be_val);
+          } else if (type_name == "le16") {
+            xe::le<uint16_t> le_val = static_cast<uint16_t>(value);
+            WriteGuestMemory<xe::le<uint16_t>>(memory, address, le_val);
+          } else if (type_name == "be32") {
+            xe::be<uint32_t> be_val = static_cast<uint32_t>(value);
+            WriteGuestMemory<xe::be<uint32_t>>(memory, address, be_val);
+          } else if (type_name == "le32") {
+            xe::le<uint32_t> le_val = static_cast<uint32_t>(value);
+            WriteGuestMemory<xe::le<uint32_t>>(memory, address, le_val);
+          } else if (type_name == "be64") {
+            xe::be<uint64_t> be_val = value;
+            WriteGuestMemory<xe::be<uint64_t>>(memory, address, be_val);
+          } else if (type_name == "le64") {
+            xe::le<uint64_t> le_val = value;
+            WriteGuestMemory<xe::le<uint64_t>>(memory, address, le_val);
           }
         }
       }
     }
+  } catch (const toml::parse_error& ex) {
+    XELOGE("Error parsing patch TOML: {}", ex.what());
   } catch (const std::exception& ex) {
     XELOGE("Error applying patch TOML: {}", ex.what());
   } catch (...) {
