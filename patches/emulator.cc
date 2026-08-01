@@ -86,6 +86,12 @@ DEFINE_string(
     "module.",
     "General");
 
+DEFINE_bool(allow_game_relative_writes, false,
+            "Not useful to non-developers. Allows code to write to paths "
+            "relative to game://. Used for "
+            "generating test data to compare with original hardware. ",
+            "General");
+
 namespace xe {
 
 using namespace xe::literals;
