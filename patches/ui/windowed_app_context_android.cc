@@ -292,7 +292,7 @@ bool AndroidWindowedAppContext::Initialize(JNIEnv* ui_thread_jni_env,
         } else {
           jstring launch_arguments_extra_name =
               ui_thread_jni_env_->NewStringUTF(
-                  "jp.xenia.emulator.WindowedAppActivity.EXTRA_CVARS");
+                  "org.adars.xeo.WindowedAppActivity.EXTRA_CVARS");
           if (!launch_arguments_extra_name) {
             __android_log_write(
                 ANDROID_LOG_ERROR, "AndroidWindowedAppContext",
@@ -616,54 +616,12 @@ bool AndroidWindowedAppContext::InitializeApp(std::unique_ptr<WindowedApp> (
 }  // namespace ui
 }  // namespace xe
 
-extern "C" {
-
-JNIEXPORT jlong JNICALL
-Java_jp_xenia_emulator_WindowedAppActivity_initializeWindowedAppOnCreate(
-    JNIEnv* jni_env, jobject activity, jstring windowed_app_identifier,
-    jobject asset_manager) {
-  return reinterpret_cast<jlong>(
-      xe::ui::AndroidWindowedAppContext ::
-          JniActivityInitializeWindowedAppOnCreate(
-              jni_env, activity, windowed_app_identifier, asset_manager));
-}
-
-JNIEXPORT void JNICALL
-Java_jp_xenia_emulator_WindowedAppActivity_onDestroyNative(
-    JNIEnv* jni_env, jobject activity, jlong app_context_ptr) {
-  reinterpret_cast<xe::ui::AndroidWindowedAppContext*>(app_context_ptr)
-      ->JniActivityOnDestroy();
-}
-
-JNIEXPORT void JNICALL
-Java_jp_xenia_emulator_WindowedAppActivity_onWindowSurfaceLayoutChange(
-    JNIEnv* jni_env, jobject activity, jlong app_context_ptr, jint left,
-    jint top, jint right, jint bottom) {
-  reinterpret_cast<xe::ui::AndroidWindowedAppContext*>(app_context_ptr)
-      ->JniActivityOnWindowSurfaceLayoutChange(left, top, right, bottom);
-}
-
-JNIEXPORT jboolean JNICALL
-Java_jp_xenia_emulator_WindowedAppActivity_onWindowSurfaceMotionEvent(
-    JNIEnv* jni_env, jobject activity, jlong app_context_ptr, jobject event) {
-  return jboolean(
-      reinterpret_cast<xe::ui::AndroidWindowedAppContext*>(app_context_ptr)
-          ->JniActivityOnWindowSurfaceMotionEvent(event));
-}
-
-JNIEXPORT void JNICALL
-Java_jp_xenia_emulator_WindowedAppActivity_onWindowSurfaceChanged(
-    JNIEnv* jni_env, jobject activity, jlong app_context_ptr,
-    jobject window_surface_object) {
-  reinterpret_cast<xe::ui::AndroidWindowedAppContext*>(app_context_ptr)
-      ->JniActivityOnWindowSurfaceChanged(window_surface_object);
-}
-
-JNIEXPORT void JNICALL Java_jp_xenia_emulator_WindowedAppActivity_paintWindow(
-    JNIEnv* jni_env, jobject activity, jlong app_context_ptr,
-    jboolean force_paint) {
-  reinterpret_cast<xe::ui::AndroidWindowedAppContext*>(app_context_ptr)
-      ->JniActivityPaintWindow(bool(force_paint));
-}
-
-}  // extern "C"
+// ---------------------------------------------------------------------------
+// Historical note (Xeo fork, 0.5.1)
+// ---------------------------------------------------------------------------
+// The orphaned Java_jp_xenia_emulator_WindowedAppActivity_* JNI exports that
+// used to live here have been removed. They referenced a `jp.xenia.emulator`
+// Java package that does not exist in this codebase — the real JNI bindings
+// live in app/src/main/cpp/jni/windowed_app_jni.cc under the
+// Java_com_xenia_android_* symbol prefix. Removing the dead exports shrinks
+// libxeo.so and eliminates a source of confusion for future maintainers.

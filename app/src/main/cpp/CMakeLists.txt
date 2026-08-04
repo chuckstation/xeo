@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22.1)
-project(xenia-android CXX C ASM)
+project(xeo CXX C ASM)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -457,9 +457,9 @@ set(XE_JNI_SRCS
 )
 
 # ---------------------------------------------------------------------------
-# Main shared library target: libxenia-android.so
+# Main shared library target: libxeo.so
 # ---------------------------------------------------------------------------
-add_library(xenia-android SHARED
+add_library(xeo SHARED
   ${XE_BASE_SRCS}
   ${XE_BASE_PLATFORM_SRCS}
   ${XE_CORE_SRCS}
@@ -519,7 +519,7 @@ endif()
 # ---------------------------------------------------------------------------
 # Link libraries
 # ---------------------------------------------------------------------------
-target_link_libraries(xenia-android
+target_link_libraries(xeo
   ${LIB_LOG}
   ${LIB_ANDROID}
   ${LIB_VULKAN}
@@ -533,8 +533,8 @@ target_link_libraries(xenia-android
 # Strip release builds
 # ---------------------------------------------------------------------------
 if(CMAKE_BUILD_TYPE STREQUAL "Release")
-  add_custom_command(TARGET xenia-android POST_BUILD
-    COMMAND ${CMAKE_STRIP} --strip-unneeded "$<TARGET_FILE:xenia-android>"
-    COMMENT "Stripping xenia-android.so")
+  add_custom_command(TARGET xeo POST_BUILD
+    COMMAND ${CMAKE_STRIP} --strip-unneeded "$<TARGET_FILE:xeo>"
+    COMMENT "Stripping libxeo.so")
 endif()
 

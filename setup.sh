@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # setup.sh — Symlink src/ and third_party/ from xenia-upstream into the repo root.
 #
+# This script is part of the Xeo fork (adars-org/xeo). Xeo is a production-ready
+# Android port of Xenia Canary; xenia-upstream is the unmodified upstream
+# emulator tree, pulled in as a submodule.
+#
 # xenia-upstream can be present either as:
 #   a) A git submodule:  git submodule update --init --depth 1 xenia-upstream
 #   b) A direct clone:   git clone --depth 1 https://github.com/xenia-project/xenia.git xenia-upstream
@@ -59,4 +63,5 @@ for target in src third_party; do
   fi
 done
 
-echo "Done. Run: ./gradlew assembleDebug"
+echo "Done. Run: ./gradlew assembleDebug\n"
+echo "Xeo build started — see app/build/outputs/apk/ for the resulting APK."

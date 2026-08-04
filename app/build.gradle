@@ -3,20 +3,25 @@ plugins {
 }
 
 android {
+    // NOTE: The Java package remains `com.xenia.android` for ABI/JNI
+    // compatibility with the native `Java_com_xenia_android_*` symbols
+    // compiled into libxeo.so. The user-facing Application ID below is
+    // `org.adars.xeo` and may differ from the namespace — this is the
+    // AGP-recommended pattern for renamed forks.
     namespace 'com.xenia.android'
-    compileSdk 34
+    compileSdk 35
 
     // Pin the exact NDK version. AGP 8.2+ warns if ndkVersion is absent
     // when externalNativeBuild is configured.
     ndkVersion '26.1.10909125'
 
     defaultConfig {
-        applicationId 'com.xenia.android'
+        applicationId 'org.adars.xeo'
         // API 24 = Android 7.0, minimum for Vulkan 1.0
         minSdk 24
-        targetSdk 34
-        versionCode 3
-        versionName "0.5.0-beta"
+        targetSdk 35
+        versionCode 4
+        versionName "0.5.1"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
 
@@ -66,7 +71,11 @@ android {
                     arguments "-DCMAKE_BUILD_TYPE=Release"
                 }
             }
-            // Use debug signing in CI; replace with a proper keystore for distribution
+            // Production signing: drop a `keystore.properties` file next to
+            // this build.gradle (see keystore.properties.example) and uncomment
+            // the block below to sign release builds for distribution.
+            //
+            // signingConfig signingConfigs.release
             signingConfig signingConfigs.debug
         }
     }
@@ -97,15 +106,36 @@ android {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Optional production signing config.
+// Enable by creating `keystore.properties` (see keystore.properties.example)
+// in the app/ directory. When absent, release builds fall back to the debug
+// signing config — useful for CI but NOT for Play Store distribution.
+// ---------------------------------------------------------------------------
+def keystorePropertiesFile = rootProject.file('app/keystore.properties')
+if (keystorePropertiesFile.exists()) {
+    def keystoreProperties = new Properties()
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+    android.signingConfigs {
+        release {
+            storeFile file(keystoreProperties['storeFile'])
+            storePassword keystoreProperties['storePassword']
+            keyAlias keystoreProperties['keyAlias']
+            keyPassword keystoreProperties['keyPassword']
+        }
+    }
+    android.buildTypes.release.signingConfig = android.signingConfigs.release
+}
+
 dependencies {
-    implementation 'androidx.appcompat:appcompat:1.6.1'
-    implementation 'com.google.android.material:material:1.11.0'
-    implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
-    implementation 'androidx.recyclerview:recyclerview:1.3.2'
+    implementation 'androidx.appcompat:appcompat:1.7.0'
+    implementation 'com.google.android.material:material:1.12.0'
+    implementation 'androidx.constraintlayout:constraintlayout:2.2.0'
+    implementation 'androidx.recyclerview:recyclerview:1.3.4'
     implementation 'androidx.preference:preference:1.2.1'
-    implementation 'androidx.documentfile:documentfile:1.0.1'
+    implementation 'androidx.documentfile:documentfile:1.1.0'
 
     testImplementation 'junit:junit:4.13.2'
-    androidTestImplementation 'androidx.test.ext:junit:1.1.5'
-    androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
+    androidTestImplementation 'androidx.test.ext:junit:1.2.1'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.6.1'
 }

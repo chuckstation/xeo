@@ -1,4 +1,4 @@
-name: Android CI
+name: Xeo Android CI
 
 on:
   push:
@@ -105,7 +105,7 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: xenia-android-${{ matrix.build_type }}-${{ github.sha }}
+          name: xeo-${{ matrix.build_type }}-${{ github.sha }}
           path: app/build/outputs/apk/${{ matrix.build_type }}/
           if-no-files-found: error
           retention-days: 14
@@ -114,7 +114,7 @@ jobs:
         if: matrix.build_type == 'release'
         uses: actions/upload-artifact@v4
         with:
-          name: xenia-android-symbols-${{ github.sha }}
+          name: xeo-symbols-${{ github.sha }}
           path: app/build/intermediates/merged_native_libs/release/
           retention-days: 14
         continue-on-error: true

@@ -11,6 +11,7 @@ import android.view.View;
 
 import androidx.annotation.Nullable;
 
+import com.xenia.android.R;
 import com.xenia.android.XeniaRuntimeException;
 
 /**
@@ -27,14 +28,15 @@ import com.xenia.android.XeniaRuntimeException;
 public abstract class WindowedAppActivity extends Activity {
 
     /**
-     * Intent extra key for a {@link Bundle} containing Xenia cvar launch
-     * arguments. The literal value is also referenced from native code.
+     * Intent extra key for a {@link Bundle} containing Xeo cvar launch
+     * arguments. The literal value is also referenced from native code
+     * (patches/ui/windowed_app_context_android.cc) and must match exactly.
      */
     public static final String EXTRA_CVARS =
-            "jp.xenia.emulator.WindowedAppActivity.EXTRA_CVARS";
+            "org.adars.xeo.WindowedAppActivity.EXTRA_CVARS";
 
     static {
-        System.loadLibrary("xenia-android");
+        System.loadLibrary("xeo");
     }
 
     // -------------------------------------------------------------------------
@@ -251,7 +253,7 @@ public abstract class WindowedAppActivity extends Activity {
     public void handleFatalError(final String message) {
         runOnUiThread(() -> {
             android.widget.Toast.makeText(WindowedAppActivity.this,
-                    "Fatal Error: " + message,
+                    getString(R.string.fatal_error_prefix, message),
                     android.widget.Toast.LENGTH_LONG).show();
             finish();
         });

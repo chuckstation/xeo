@@ -1,7 +1,7 @@
-// Copyright 2026 Xenia Android Contributors. All rights reserved.
+// Copyright 2026 Xeo Contributors. All rights reserved.
 // Released under the BSD license - see LICENSE in the root for more details.
 //
-// JNI bridge — com.xenia.android.emulator.WindowedAppActivity  →  Xenia native.
+// JNI bridge — com.xenia.android.emulator.WindowedAppActivity  →  Xeo native.
 //
 // Design:
 //   The Xenia upstream already implements everything we need inside
@@ -9,8 +9,10 @@
 //   canonical entry points for all lifecycle, surface, input, and paint events.
 //
 //   This file is a thin shim that:
-//     1. Re-exports those methods under the new Java package name
-//        (com.xenia.android vs the original jp.xenia).
+//     1. Re-exports those methods under the Java package name
+//        `com.xenia.android` (kept for ABI compatibility with the native
+//        Java_com_xenia_android_* symbols; the user-facing Application ID
+//        is `org.adars.xeo`).
 //     2. Passes the EXTRA_CVARS Bundle to the emulator so cvars like
 //        "target" (game path) and "target_trace_file" reach the native side.
 //
@@ -27,7 +29,7 @@
 #include "xenia/emulator.h"
 #include "xenia/hid/android_input_driver.h"
 
-#define XTAG  "XeniaJNI"
+#define XTAG  "XeoJNI"
 #define XLOGI(...) __android_log_print(ANDROID_LOG_INFO,  XTAG, __VA_ARGS__)
 #define XLOGE(...) __android_log_print(ANDROID_LOG_ERROR, XTAG, __VA_ARGS__)
 

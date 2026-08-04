@@ -35,7 +35,7 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:hardwareAccelerated="true"
-        android:theme="@style/Theme.XeniaAndroid">
+        android:theme="@style/Theme.Xeo">
 
         <!-- Main launcher: game library browser -->
         <activity
@@ -61,7 +61,7 @@
             android:exported="false"
             android:configChanges="orientation|screenSize|keyboardHidden|navigation"
             android:screenOrientation="sensorLandscape"
-            android:theme="@style/Theme.XeniaAndroid.Fullscreen"
+            android:theme="@style/Theme.Xeo.Fullscreen"
             android:launchMode="singleTop" />
 
         <!-- GPU Vulkan trace viewer (debug/dev tool) -->
@@ -71,7 +71,7 @@
             android:configChanges="orientation|screenSize"
             android:label="@string/activity_label_gpu_trace_viewer"
             android:screenOrientation="sensorLandscape"
-            android:theme="@style/Theme.XeniaAndroid.Fullscreen">
+            android:theme="@style/Theme.Xeo.Fullscreen">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />

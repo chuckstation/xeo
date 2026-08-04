@@ -102,17 +102,17 @@ public class EmulatorActivity extends WindowedAppActivity {
 
     private void showEmulatorMenu() {
         final String[] options = {
-            "Save State (Slot 1)",
-            "Load State (Slot 1)",
-            "Save State (Slot 2)",
-            "Load State (Slot 2)",
-            "Save State (Slot 3)",
-            "Load State (Slot 3)",
-            "Exit Game"
+            getString(R.string.emulator_menu_save_state_slot, 1),
+            getString(R.string.emulator_menu_load_state_slot, 1),
+            getString(R.string.emulator_menu_save_state_slot, 2),
+            getString(R.string.emulator_menu_load_state_slot, 2),
+            getString(R.string.emulator_menu_save_state_slot, 3),
+            getString(R.string.emulator_menu_load_state_slot, 3),
+            getString(R.string.emulator_menu_exit_game)
         };
 
         new android.app.AlertDialog.Builder(this)
-                .setTitle("Emulator Menu")
+                .setTitle(R.string.emulator_menu_title)
                 .setItems(options, (dialog, which) -> {
                     switch (which) {
                         case 0:
@@ -209,26 +209,25 @@ public class EmulatorActivity extends WindowedAppActivity {
     private void handleSaveState(int slot) {
         String path = getSaveStatePath(slot);
         boolean success = nativeSaveState(path);
-        if (success) {
-            Toast.makeText(this, "Save State Saved to Slot " + slot, Toast.LENGTH_SHORT).show();
-        } else {
-            Toast.makeText(this, "Failed to Save State to Slot " + slot, Toast.LENGTH_SHORT).show();
-        }
+        Toast.makeText(this,
+                success ? getString(R.string.savestate_saved, slot)
+                        : getString(R.string.savestate_save_failed, slot),
+                Toast.LENGTH_SHORT).show();
     }
 
     private void handleLoadState(int slot) {
         String path = getSaveStatePath(slot);
         java.io.File file = new java.io.File(path);
         if (!file.exists()) {
-            Toast.makeText(this, "No Save State found in Slot " + slot, Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, getString(R.string.savestate_not_found, slot),
+                    Toast.LENGTH_SHORT).show();
             return;
         }
         boolean success = nativeRestoreState(path);
-        if (success) {
-            Toast.makeText(this, "Save State Loaded from Slot " + slot, Toast.LENGTH_SHORT).show();
-        } else {
-            Toast.makeText(this, "Failed to Load Save State from Slot " + slot, Toast.LENGTH_SHORT).show();
-        }
+        Toast.makeText(this,
+                success ? getString(R.string.savestate_loaded, slot)
+                        : getString(R.string.savestate_load_failed, slot),
+                Toast.LENGTH_SHORT).show();
     }
 
     private void confirmExit() {

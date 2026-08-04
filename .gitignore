@@ -29,7 +29,7 @@ Thumbs.db
 # is intentionally committed and must NOT be in .gitignore.
 # Do NOT add gradle/wrapper/gradle-wrapper.jar here.
 
-# Xenia source (managed as a submodule — not committed directly)
+# Upstream Xenia source (managed as a submodule — not committed directly)
 # src/ and third_party/ are symlinks created by setup.sh; ignore them
 /src
 /third_party

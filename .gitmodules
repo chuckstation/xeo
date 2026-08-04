@@ -1,8 +1,10 @@
 # xenia-upstream is cloned directly by CI and setup.sh.
 # For a proper git submodule setup run:
 #   git submodule add -b canary_experimental https://github.com/xenia-canary/xenia-canary.git xenia-upstream
+#
+# Xeo (adars-org/xeo) pins to the same upstream revision as xenia-android.
 [submodule "xenia-upstream"]
-	path = xenia-upstream
-	url = https://github.com/xenia-canary/xenia-canary.git
-	branch = canary_experimental
-	ignore = all
+        path = xenia-upstream
+        url = https://github.com/xenia-canary/xenia-canary.git
+        branch = canary_experimental
+        ignore = all

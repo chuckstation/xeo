@@ -1,4 +1,5 @@
 // Top-level build file — configuration for all sub-projects/modules.
 plugins {
-    id 'com.android.application' version '8.2.2' apply false
+    // AGP 8.5+ is required for compileSdk 35 (Android 15).
+    id 'com.android.application' version '8.5.2' apply false
 }
