@@ -16,11 +16,6 @@ captures/
 .cxx/
 app/.cxx/
 
-# Signing keys — never commit
-*.jks
-*.keystore
-keystore.properties
-
 # OS
 Thumbs.db
 .DS_Store
