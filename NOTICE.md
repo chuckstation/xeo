@@ -1,15 +1,14 @@
 # Xeo — Third-Party Notices
 
-Xeo is a fork of [xenia-android](https://github.com/xenia-android/xenia-android),
-which is itself an Android port of [Xenia Canary](https://github.com/xenia-canary/xenia-canary).
-The full upstream license text is reproduced in [LICENSE](LICENSE) (BSD 3-Clause).
+Xeo is an Android port of [Xenia Canary](https://github.com/xenia-canary/xenia-canary),
+the open-source Xbox 360 emulator. The full upstream license text is reproduced
+in [LICENSE](LICENSE) (BSD 3-Clause).
 
 ## Upstream projects
 
 | Project                                | License         | Used for                                  |
 | -------------------------------------- | --------------- | ----------------------------------------- |
 | xenia-canary/xenia-canary              | BSD 3-Clause    | Xbox 360 emulator core (submodule)        |
-| xenia-android/xenia-android            | BSD 3-Clause    | Android port scaffolding, JNI bridge      |
 
 ## Third-party libraries vendored via `xenia-upstream/third_party/`
 

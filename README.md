@@ -6,10 +6,9 @@
 [![Release](https://img.shields.io/badge/release-0.5.1%20stable-brightgreen.svg)](#)
 [![License](https://img.shields.io/badge/license-BSD%203--Clause-blue.svg)](LICENSE)
 
-Xeo is maintained as a friendly fork of [xenia-android/xenia-android](https://github.com/xenia-android/xenia-android).
-The first stable release is **0.5.1** — there are no beta, alpha, or canary phases
-in the Xeo release line. Builds tagged `0.5.x` on the `main` branch are considered
-shippable to end users.
+The first stable release is **0.5.1** — there are no beta, alpha, or canary
+phases in the Xeo release line. Builds tagged `0.5.x` on the `main` branch
+are considered shippable to end users.
 
 ## Requirements
 
@@ -30,13 +29,6 @@ bash setup.sh
 **Tools required:** JDK 17, Android NDK r26 (`26.1.10909125`), CMake 3.22, Gradle 8.9 (bundled via the wrapper).
 
 The resulting APK is written to `app/build/outputs/apk/release/app-release.apk`.
-
-### Release signing
-
-For distribution outside of CI, replace the `signingConfig signingConfigs.debug`
-line in `app/build.gradle` with a proper `signingConfigs.release` block pointing
-at your keystore. CI builds are signed with the debug key by default — do not
-ship those.
 
 ## Project layout
 

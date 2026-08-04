@@ -66,11 +66,6 @@ android {
                     arguments "-DCMAKE_BUILD_TYPE=Release"
                 }
             }
-            // Production signing: drop a `keystore.properties` file next to
-            // this build.gradle and uncomment the signingConfigs block below
-            // to sign release builds for distribution.
-            //
-            // signingConfig signingConfigs.release
             signingConfig signingConfigs.debug
         }
     }

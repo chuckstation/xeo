@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # setup.sh — Symlink src/ and third_party/ from xenia-upstream into the repo root.
 #
-# This script is part of the Xeo fork (adars-org/xeo). Xeo is a production-ready
+# This script is part of Xeo (adars-org/xeo). Xeo is a production-ready
 # Android port of Xenia Canary; xenia-upstream is the unmodified upstream
 # emulator tree, pulled in as a submodule.
 #

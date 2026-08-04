@@ -1,4 +1,4 @@
-// Copyright 2026 Xenia Android Contributors. All rights reserved.
+// Copyright 2026 Xeo Contributors. All rights reserved.
 // Released under the BSD license - see LICENSE in the root for more details.
 
 #include "xenia_jni_utils.h"
