@@ -11,7 +11,7 @@
         The SurfaceView that the native Vulkan renderer draws into.
         It fills the entire screen; the native layer clips/letterboxes as needed.
     -->
-    <com.xenia.android.emulator.WindowSurfaceView
+    <org.adars.xeo.emulator.WindowSurfaceView
         android:id="@+id/emulator_surface_view"
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
@@ -20,7 +20,7 @@
         The modern Xbox 360-style touch controller overlay.
         Drawn on top of the emulator surface view.
     -->
-    <com.xenia.android.emulator.TouchControllerOverlay
+    <org.adars.xeo.emulator.TouchControllerOverlay
         android:id="@+id/touch_controller_overlay"
         android:layout_width="match_parent"
         android:layout_height="match_parent" />

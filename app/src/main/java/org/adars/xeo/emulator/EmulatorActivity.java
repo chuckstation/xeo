@@ -1,4 +1,4 @@
-package com.xenia.android.emulator;
+package org.adars.xeo.emulator;
 
 import android.content.Intent;
 import android.net.Uri;
@@ -9,8 +9,8 @@ import android.view.WindowInsets;
 import android.view.WindowInsetsController;
 import android.widget.Toast;
 
-import com.xenia.android.R;
-import com.xenia.android.utils.PathUtils;
+import org.adars.xeo.R;
+import org.adars.xeo.utils.PathUtils;
 
 /**
  * Full-screen emulator activity that runs an Xbox 360 game.

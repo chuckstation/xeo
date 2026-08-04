@@ -1,4 +1,4 @@
-package com.xenia.android.emulator;
+package org.adars.xeo.emulator;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
@@ -11,8 +11,8 @@ import android.view.View;
 
 import androidx.annotation.Nullable;
 
-import com.xenia.android.R;
-import com.xenia.android.XeniaRuntimeException;
+import org.adars.xeo.R;
+import org.adars.xeo.XeoRuntimeException;
 
 /**
  * Abstract base activity that bridges the Android view system to the
@@ -166,7 +166,7 @@ public abstract class WindowedAppActivity extends Activity {
 
         if (mAppContext == 0) {
             finish();
-            throw new XeniaRuntimeException(
+            throw new XeoRuntimeException(
                     "Failed to initialise native windowed app: "
                             + getWindowedAppIdentifier());
         }

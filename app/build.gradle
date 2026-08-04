@@ -3,12 +3,7 @@ plugins {
 }
 
 android {
-    // NOTE: The Java package remains `com.xenia.android` for ABI/JNI
-    // compatibility with the native `Java_com_xenia_android_*` symbols
-    // compiled into libxeo.so. The user-facing Application ID below is
-    // `org.adars.xeo` and may differ from the namespace — this is the
-    // AGP-recommended pattern for renamed forks.
-    namespace 'com.xenia.android'
+    namespace 'org.adars.xeo'
     compileSdk 35
 
     // Pin the exact NDK version. AGP 8.2+ warns if ndkVersion is absent
@@ -72,8 +67,8 @@ android {
                 }
             }
             // Production signing: drop a `keystore.properties` file next to
-            // this build.gradle (see keystore.properties.example) and uncomment
-            // the block below to sign release builds for distribution.
+            // this build.gradle and uncomment the signingConfigs block below
+            // to sign release builds for distribution.
             //
             // signingConfig signingConfigs.release
             signingConfig signingConfigs.debug
@@ -104,27 +99,6 @@ android {
             keepDebugSymbols += ['**/*.so']
         }
     }
-}
-
-// ---------------------------------------------------------------------------
-// Optional production signing config.
-// Enable by creating `keystore.properties` (see keystore.properties.example)
-// in the app/ directory. When absent, release builds fall back to the debug
-// signing config — useful for CI but NOT for Play Store distribution.
-// ---------------------------------------------------------------------------
-def keystorePropertiesFile = rootProject.file('app/keystore.properties')
-if (keystorePropertiesFile.exists()) {
-    def keystoreProperties = new Properties()
-    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
-    android.signingConfigs {
-        release {
-            storeFile file(keystoreProperties['storeFile'])
-            storePassword keystoreProperties['storePassword']
-            keyAlias keystoreProperties['keyAlias']
-            keyPassword keystoreProperties['keyPassword']
-        }
-    }
-    android.buildTypes.release.signingConfig = android.signingConfigs.release
 }
 
 dependencies {

@@ -140,10 +140,12 @@ void UserModule::ApplyGamePatches() {
   std::string tid_str = fmt::format("{:08X}", tid);
   
   std::vector<std::filesystem::path> patch_dirs = {
+    "/storage/emulated/0/Xeo/patches",
     "/storage/emulated/0/Xenia/patches",
-    "/storage/emulated/0/Android/data/com.xenia.android/patches",
+    "/storage/emulated/0/Android/data/org.adars.xeo/patches",
+    "/sdcard/Xeo/patches",
     "/sdcard/Xenia/patches",
-    "/sdcard/Android/data/com.xenia.android/patches",
+    "/sdcard/Android/data/org.adars.xeo/patches",
     std::filesystem::path(cvars::storage_root) / "patches"
   };
 

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<com.xenia.android.emulator.WindowSurfaceView
+<org.adars.xeo.emulator.WindowSurfaceView
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/gpu_trace_viewer_surface_view"

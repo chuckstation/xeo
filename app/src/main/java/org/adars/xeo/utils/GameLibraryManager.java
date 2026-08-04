@@ -1,4 +1,4 @@
-package com.xenia.android.utils;
+package org.adars.xeo.utils;
 
 import android.content.Context;
 import android.content.SharedPreferences;

@@ -1,4 +1,4 @@
-package com.xenia.android.emulator;
+package org.adars.xeo.emulator;
 
 import android.content.Context;
 import android.graphics.Canvas;

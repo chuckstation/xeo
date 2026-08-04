@@ -1,11 +1,11 @@
-package com.xenia.android.ui;
+package org.adars.xeo.ui;
 
 import android.os.Bundle;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.preference.PreferenceFragmentCompat;
 
-import com.xenia.android.R;
+import org.adars.xeo.R;
 
 /**
  * Hosts the preferences fragment for emulator configuration.
@@ -24,7 +24,7 @@ public class SettingsActivity extends AppCompatActivity {
         if (savedInstanceState == null) {
             getSupportFragmentManager()
                     .beginTransaction()
-                    .replace(R.id.settings_container, new XeniaPreferenceFragment())
+                    .replace(R.id.settings_container, new XeoPreferenceFragment())
                     .commit();
         }
     }
@@ -37,7 +37,7 @@ public class SettingsActivity extends AppCompatActivity {
 
     // -------------------------------------------------------------------------
 
-    public static class XeniaPreferenceFragment extends PreferenceFragmentCompat {
+    public static class XeoPreferenceFragment extends PreferenceFragmentCompat {
         @Override
         public void onCreatePreferences(final Bundle savedInstanceState,
                                         final String rootKey) {

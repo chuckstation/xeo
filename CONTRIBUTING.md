@@ -30,7 +30,7 @@ Personal attacks, harassment, and discrimination are not tolerated.
 
 ## Code style
 
-- **Java:** 4-space indent, no tabs. Follow the existing `com.xenia.android`
+- **Java:** 4-space indent, no tabs. Follow the existing `org.adars.xeo`
   package conventions. Use `final` on parameters and locals where the
   reference is never reassigned — the existing code does this consistently.
 - **C++:** Follow the upstream Xenia style (`xenia-upstream/xenia/.clang-format`).

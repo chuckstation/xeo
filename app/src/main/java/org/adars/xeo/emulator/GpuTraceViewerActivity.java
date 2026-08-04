@@ -1,8 +1,8 @@
-package com.xenia.android.emulator;
+package org.adars.xeo.emulator;
 
 import android.os.Bundle;
 
-import com.xenia.android.R;
+import org.adars.xeo.R;
 
 /**
  * Vulkan GPU trace viewer — developer / debug tool.

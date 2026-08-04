@@ -1,4 +1,4 @@
-package com.xenia.android.ui;
+package org.adars.xeo.ui;
 
 import android.app.Activity;
 import android.content.Intent;
@@ -17,13 +17,13 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
-import com.xenia.android.R;
-import com.xenia.android.emulator.EmulatorActivity;
-import com.xenia.android.emulator.GpuTraceViewerActivity;
-import com.xenia.android.emulator.WindowedAppActivity;
-import com.xenia.android.utils.GameEntry;
-import com.xenia.android.utils.GameLibraryManager;
-import com.xenia.android.utils.PathUtils;
+import org.adars.xeo.R;
+import org.adars.xeo.emulator.EmulatorActivity;
+import org.adars.xeo.emulator.GpuTraceViewerActivity;
+import org.adars.xeo.emulator.WindowedAppActivity;
+import org.adars.xeo.utils.GameEntry;
+import org.adars.xeo.utils.GameLibraryManager;
+import org.adars.xeo.utils.PathUtils;
 
 import java.util.List;
 

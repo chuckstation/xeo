@@ -623,5 +623,5 @@ bool AndroidWindowedAppContext::InitializeApp(std::unique_ptr<WindowedApp> (
 // used to live here have been removed. They referenced a `jp.xenia.emulator`
 // Java package that does not exist in this codebase — the real JNI bindings
 // live in app/src/main/cpp/jni/windowed_app_jni.cc under the
-// Java_com_xenia_android_* symbol prefix. Removing the dead exports shrinks
+// Java_org_adars_xeo_* symbol prefix. Removing the dead exports shrinks
 // libxeo.so and eliminates a source of confusion for future maintainers.

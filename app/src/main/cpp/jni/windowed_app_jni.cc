@@ -1,20 +1,17 @@
 // Copyright 2026 Xeo Contributors. All rights reserved.
 // Released under the BSD license - see LICENSE in the root for more details.
 //
-// JNI bridge — com.xenia.android.emulator.WindowedAppActivity  →  Xeo native.
+// JNI bridge — org.adars.xeo.emulator.WindowedAppActivity  →  Xeo native.
 //
 // Design:
 //   The Xenia upstream already implements everything we need inside
 //   AndroidWindowedAppContext.  Its Jni* static/instance methods are the
 //   canonical entry points for all lifecycle, surface, input, and paint events.
 //
-//   This file is a thin shim that:
-//     1. Re-exports those methods under the Java package name
-//        `com.xenia.android` (kept for ABI compatibility with the native
-//        Java_com_xenia_android_* symbols; the user-facing Application ID
-//        is `org.adars.xeo`).
-//     2. Passes the EXTRA_CVARS Bundle to the emulator so cvars like
-//        "target" (game path) and "target_trace_file" reach the native side.
+//   This file is a thin shim that re-exports those methods under the
+//   `org.adars.xeo` Java package name.
+//   It also passes the EXTRA_CVARS Bundle to the emulator so cvars like
+//   "target" (game path) and "target_trace_file" reach the native side.
 //
 // All heavy lifting — CPU JIT, GPU Vulkan renderer, file system, audio —
 // is compiled in from the vendored src/xenia/ tree via CMakeLists.txt.
@@ -58,7 +55,7 @@ extern "C" {
 // on failure.
 // ---------------------------------------------------------------------------
 JNIEXPORT jlong JNICALL
-Java_com_xenia_android_emulator_WindowedAppActivity_nativeInitialize(
+Java_org_adars_xeo_emulator_WindowedAppActivity_nativeInitialize(
     JNIEnv* env, jobject activity,
     jstring windowedAppIdentifier,
     jobject assetManager,
@@ -94,7 +91,7 @@ Java_com_xenia_android_emulator_WindowedAppActivity_nativeInitialize(
 // nativeDestroy — called from WindowedAppActivity.onDestroy()
 // ---------------------------------------------------------------------------
 JNIEXPORT void JNICALL
-Java_com_xenia_android_emulator_WindowedAppActivity_nativeDestroy(
+Java_org_adars_xeo_emulator_WindowedAppActivity_nativeDestroy(
     JNIEnv* /*env*/, jobject /*activity*/, jlong handle) {
   XLOGI("nativeDestroy: handle=%p",
         reinterpret_cast<void*>(static_cast<uintptr_t>(handle)));
@@ -106,7 +103,7 @@ Java_com_xenia_android_emulator_WindowedAppActivity_nativeDestroy(
 // nativeSurfaceLayoutChange — forwarded from View.OnLayoutChangeListener
 // ---------------------------------------------------------------------------
 JNIEXPORT void JNICALL
-Java_com_xenia_android_emulator_WindowedAppActivity_nativeSurfaceLayoutChange(
+Java_org_adars_xeo_emulator_WindowedAppActivity_nativeSurfaceLayoutChange(
     JNIEnv* /*env*/, jobject /*activity*/, jlong handle,
     jint left, jint top, jint right, jint bottom) {
   AndroidWindowedAppContext* ctx_ = toCtx(handle);
@@ -118,7 +115,7 @@ Java_com_xenia_android_emulator_WindowedAppActivity_nativeSurfaceLayoutChange(
 // Returns true if the event was consumed by the native layer.
 // ---------------------------------------------------------------------------
 JNIEXPORT jboolean JNICALL
-Java_com_xenia_android_emulator_WindowedAppActivity_nativeSurfaceMotionEvent(
+Java_org_adars_xeo_emulator_WindowedAppActivity_nativeSurfaceMotionEvent(
     JNIEnv* /*env*/, jobject /*activity*/, jlong handle, jobject event) {
   AndroidWindowedAppContext* ctx_ = toCtx(handle);
   if (!ctx_ || !event) return JNI_FALSE;
@@ -130,7 +127,7 @@ Java_com_xenia_android_emulator_WindowedAppActivity_nativeSurfaceMotionEvent(
 // nativeSurfaceChanged — Surface created / changed / destroyed (null → gone)
 // ---------------------------------------------------------------------------
 JNIEXPORT void JNICALL
-Java_com_xenia_android_emulator_WindowedAppActivity_nativeSurfaceChanged(
+Java_org_adars_xeo_emulator_WindowedAppActivity_nativeSurfaceChanged(
     JNIEnv* /*env*/, jobject /*activity*/, jlong handle, jobject surface) {
   AndroidWindowedAppContext* ctx_ = toCtx(handle);
   if (ctx_) ctx_->JniActivityOnWindowSurfaceChanged(surface);
@@ -140,7 +137,7 @@ Java_com_xenia_android_emulator_WindowedAppActivity_nativeSurfaceChanged(
 // nativePaint — called from WindowSurfaceView.onDraw and surfaceRedrawNeeded
 // ---------------------------------------------------------------------------
 JNIEXPORT void JNICALL
-Java_com_xenia_android_emulator_WindowedAppActivity_nativePaint(
+Java_org_adars_xeo_emulator_WindowedAppActivity_nativePaint(
     JNIEnv* /*env*/, jobject /*activity*/, jlong handle, jboolean forcePaint) {
   AndroidWindowedAppContext* ctx_ = toCtx(handle);
   if (ctx_) ctx_->JniActivityPaintWindow(forcePaint == JNI_TRUE);
@@ -150,7 +147,7 @@ Java_com_xenia_android_emulator_WindowedAppActivity_nativePaint(
 // nativeSetGamepadState — called from Java TouchControllerOverlay
 // ---------------------------------------------------------------------------
 JNIEXPORT void JNICALL
-Java_com_xenia_android_emulator_EmulatorActivity_nativeSetGamepadState(
+Java_org_adars_xeo_emulator_EmulatorActivity_nativeSetGamepadState(
     JNIEnv* /*env*/, jobject /*activity*/, jint buttons, jint lt, jint rt,
     jint lx, jint ly, jint rx, jint ry) {
   xe::hid::AndroidInputDriver::SetButtonState(
@@ -168,7 +165,7 @@ Java_com_xenia_android_emulator_EmulatorActivity_nativeSetGamepadState(
 // nativeSaveState — called from EmulatorActivity to save state to file
 // ---------------------------------------------------------------------------
 JNIEXPORT jboolean JNICALL
-Java_com_xenia_android_emulator_EmulatorActivity_nativeSaveState(
+Java_org_adars_xeo_emulator_EmulatorActivity_nativeSaveState(
     JNIEnv* env, jobject activity, jstring filePath) {
   XLOGI("nativeSaveState: entry");
   xe::Emulator* emulator = xe::GetActiveEmulator();
@@ -192,7 +189,7 @@ Java_com_xenia_android_emulator_EmulatorActivity_nativeSaveState(
 // nativeRestoreState — called from EmulatorActivity to load state from file
 // ---------------------------------------------------------------------------
 JNIEXPORT jboolean JNICALL
-Java_com_xenia_android_emulator_EmulatorActivity_nativeRestoreState(
+Java_org_adars_xeo_emulator_EmulatorActivity_nativeRestoreState(
     JNIEnv* env, jobject activity, jstring filePath) {
   XLOGI("nativeRestoreState: entry");
   xe::Emulator* emulator = xe::GetActiveEmulator();

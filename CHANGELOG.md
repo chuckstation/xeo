@@ -15,13 +15,18 @@ shippable release.
 
 - Forked from `xenia-android/xenia-android` and rebranded as **Xeo** under
   `adars-org/xeo`.
-- User-facing Application ID changed to `org.adars.xeo`. The internal Java
-  package `com.xenia.android` is preserved for ABI compatibility with the
-  native `Java_com_xenia_android_*` JNI symbols compiled into `libxeo.so`.
+- Application ID and Java package both set to `org.adars.xeo`. Native JNI
+  symbols follow `Java_org_adars_xeo_*` and are compiled into `libxeo.so`.
 - Native library renamed from `libxenia-android.so` to `libxeo.so`.
+- Java class renames: `XeniaRuntimeException` → `XeoRuntimeException`,
+  `XeniaPreferenceFragment` → `XeoPreferenceFragment`.
 - App label, theme name, color resources, log tags, and CI artifact names
   all updated to the Xeo identity.
 - `rootProject.name` changed from `XeniaAndroid` to `Xeo`.
+- `patches/kernel/user_module.cc` now searches for game patches under both
+  the new `Xeo/patches` and `Android/data/org.adars.xeo/patches` paths and
+  the legacy `Xenia/...` and `Android/data/com.xenia.android/...` paths,
+  so existing user patch directories keep working.
 
 ### Versioning
 
@@ -43,10 +48,9 @@ shippable release.
   - `androidx.documentfile:documentfile` 1.0.1 → 1.1.0
   - `androidx.test.ext:junit` 1.1.5 → 1.2.1
   - `androidx.test.espresso:espresso-core` 3.5.1 → 3.6.1
-- Added an opt-in release signing config driven by `app/keystore.properties`
-  (see `keystore.properties.example`). When the file is absent the build
-  falls back to the debug signing config — useful for CI but not for Play
-  Store distribution.
+- Release signing is documented in `README.md` as a manual edit of the
+  `signingConfig` line in `app/build.gradle`. CI builds are signed with
+  the debug key by default.
 
 ### Code quality fixes
 
@@ -55,7 +59,7 @@ shippable release.
   referenced a `jp.xenia.emulator` Java package that does not exist in this
   codebase — the real JNI bindings live in
   `app/src/main/cpp/jni/windowed_app_jni.cc` under the
-  `Java_com_xenia_android_*` symbol prefix. The dead exports were bloating
+  `Java_org_adars_xeo_*` symbol prefix. The dead exports were bloating
   `libxeo.so` and confusing maintainers.
 - Aligned the `EXTRA_CVARS` intent-extra key between Java and native code.
   Both sides now use `org.adars.xeo.WindowedAppActivity.EXTRA_CVARS`. The
@@ -64,8 +68,6 @@ shippable release.
   and `WindowedAppActivity.java` into `res/values/strings.xml` with proper
   formatting placeholders (`%1$d`, `%1$s`). The savestate menu, toast
   messages, and fatal-error dialog are now translatable.
-- Added an explanatory comment in `app/build.gradle` documenting why the
-  Java package diverges from the Application ID.
 
 ### Documentation
 
@@ -73,7 +75,6 @@ shippable release.
   sections.
 - Added `NOTICE.md` with upstream and third-party attributions.
 - Added `CONTRIBUTING.md` describing the contribution workflow.
-- Added `keystore.properties.example` documenting the release signing format.
 
 ### Removed
 

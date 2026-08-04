@@ -1,4 +1,4 @@
-package com.xenia.android.ui;
+package org.adars.xeo.ui;
 
 import android.view.LayoutInflater;
 import android.view.View;
@@ -11,8 +11,8 @@ import androidx.recyclerview.widget.DiffUtil;
 import androidx.recyclerview.widget.ListAdapter;
 import androidx.recyclerview.widget.RecyclerView;
 
-import com.xenia.android.R;
-import com.xenia.android.utils.GameEntry;
+import org.adars.xeo.R;
+import org.adars.xeo.utils.GameEntry;
 
 /**
  * RecyclerView adapter that displays the scanned game library.

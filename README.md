@@ -33,10 +33,10 @@ The resulting APK is written to `app/build/outputs/apk/release/app-release.apk`.
 
 ### Release signing
 
-For distribution outside of CI, copy `keystore.properties.example` to
-`app/keystore.properties`, fill in your keystore path and credentials, and
-re-run `./gradlew assembleRelease`. The `keystore.properties` file is git-ignored.
-CI builds are signed with the debug key by default — do not ship those.
+For distribution outside of CI, replace the `signingConfig signingConfigs.debug`
+line in `app/build.gradle` with a proper `signingConfigs.release` block pointing
+at your keystore. CI builds are signed with the debug key by default — do not
+ship those.
 
 ## Project layout
 
@@ -47,10 +47,10 @@ xeo/
 │   ├── proguard-rules.pro     # Keeps JNI bridge symbols
 │   └── src/main/
 │       ├── AndroidManifest.xml
-│       ├── java/com/xenia/android/        # Java sources (package kept for ABI)
+│       ├── java/org/adars/xeo/            # Java sources (package org.adars.xeo)
 │       ├── cpp/                # CMakeLists.txt → libxeo.so
 │       │   ├── CMakeLists.txt
-│       │   ├── jni/            # JNI bridge → Java_com_xenia_android_*
+│       │   ├── jni/            # JNI bridge → Java_org_adars_xeo_*
 │       │   └── custom_include/ # Build-time stubs
 │       └── res/                # Strings, themes, colors, layouts
 ├── patches/                    # C++ sources layered on top of xenia-upstream
@@ -68,10 +68,9 @@ overrides that are layered on top of the upstream tree by `setup.sh` before the
 native build runs. Xeo never modifies the submodule in place — every Android
 adaptation lives in this repository.
 
-The Java package remains `com.xenia.android` for ABI compatibility with the
-native `Java_com_xenia_android_*` JNI symbols compiled into `libxeo.so`. The
-user-facing Application ID is `org.adars.xeo` and is set in `app/build.gradle`.
-This is the AGP-recommended pattern for renamed forks.
+The Java package is `org.adars.xeo` and matches the user-facing Application ID
+set in `app/build.gradle`. Native JNI symbols follow the `Java_org_adars_xeo_*`
+prefix and are compiled into `libxeo.so`.
 
 ## License
 
