@@ -2,14 +2,6 @@
 
 **Xeo** is a production-ready Android port of [Xenia Canary](https://github.com/xenia-canary/xenia-canary), the open-source Xbox 360 emulator.
 
-[![Xeo Android CI](https://github.com/adars-org/xeo/actions/workflows/ci.yml/badge.svg)](https://github.com/adars-org/xeo/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/badge/release-0.5.1%20stable-brightgreen.svg)](#)
-[![License](https://img.shields.io/badge/license-BSD%203--Clause-blue.svg)](LICENSE)
-
-The first stable release is **0.5.1** — there are no beta, alpha, or canary
-phases in the Xeo release line. Builds tagged `0.5.x` on the `main` branch
-are considered shippable to end users.
-
 ## Requirements
 
 - Android 7.0+ (API 24), Vulkan 1.0
@@ -19,7 +11,7 @@ are considered shippable to end users.
 ## Building
 
 ```bash
-git clone https://github.com/adars-org/xeo.git
+git clone https://github.com/libaerto/xeo.git
 cd xeo
 git submodule update --init --depth 1 xenia-upstream
 bash setup.sh
