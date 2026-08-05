@@ -49,7 +49,11 @@ jobs:
         run: bash setup.sh
 
       - name: Compile SPIR-V Shaders
-        run: python3 xenia-upstream/xenia-build.py buildshaders --target spirv
+        env:
+          VULKAN_SDK: /usr
+        run: |
+          sed -i '/--canonicalize-ids/d' xenia-upstream/xenia-build.py || true
+          python3 xenia-upstream/xenia-build.py buildshaders --target spirv
 
       - name: Verify source tree
         run: |
