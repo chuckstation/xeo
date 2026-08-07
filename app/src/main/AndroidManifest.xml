@@ -85,6 +85,7 @@
             android:name=".ui.SettingsActivity"
             android:exported="false"
             android:label="@string/settings"
+            android:theme="@style/Theme.Xeo.WithActionBar"
             android:parentActivityName=".ui.MainActivity" />
 
         <!-- File picker provider for SAF access -->

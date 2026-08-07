@@ -82,6 +82,11 @@ public class MainActivity extends AppCompatActivity
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        final androidx.appcompat.widget.Toolbar toolbar = findViewById(R.id.toolbar);
+        if (toolbar != null) {
+            setSupportActionBar(toolbar);
+        }
+
         mLibraryManager = new GameLibraryManager(this);
 
         mEmptyView = findViewById(R.id.tv_empty);

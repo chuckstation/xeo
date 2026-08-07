@@ -1,6 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.Xeo" parent="Theme.MaterialComponents.DayNight.DarkActionBar">
+    <style name="Theme.Xeo" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/xeo_green</item>
+        <item name="colorPrimaryVariant">@color/xeo_green_dark</item>
+        <item name="colorOnPrimary">@color/white</item>
+        <item name="colorSecondary">@color/xeo_accent</item>
+        <item name="colorOnSecondary">@color/white</item>
+        <item name="android:statusBarColor">@color/xeo_green_dark</item>
+    </style>
+
+    <!-- Theme with a default action bar, used by SettingsActivity -->
+    <style name="Theme.Xeo.WithActionBar" parent="Theme.MaterialComponents.DayNight.DarkActionBar">
         <item name="colorPrimary">@color/xeo_green</item>
         <item name="colorPrimaryVariant">@color/xeo_green_dark</item>
         <item name="colorOnPrimary">@color/white</item>
