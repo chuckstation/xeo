@@ -5,6 +5,17 @@ All notable changes to **Xeo** are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.2] — 2026-08-07
+
+### Versioning
+
+- `versionName`: `0.5.2` (stable).
+- `versionCode`: `5`.
+
+### Added
+
+- Local build and packaging of the release APK in the `/build` folder.
+
 ## [0.5.1] — 2026-08-04
 
 First stable, production-ready release of Xeo. There are no beta, alpha, or

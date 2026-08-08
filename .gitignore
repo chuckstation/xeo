@@ -1,8 +1,7 @@
 # Gradle build outputs
 .gradle/
-build/
+app/build/
 local.properties
-*.apk
 *.aab
 *.ap_
 *.dex
