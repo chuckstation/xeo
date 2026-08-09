@@ -11,7 +11,7 @@
 ## Building
 
 ```bash
-git clone https://github.com/libaerto/xeo.git
+git clone https://github.com/ChuckStation/xeo.git
 cd xeo
 git submodule update --init --depth 1 xenia-upstream
 bash setup.sh
