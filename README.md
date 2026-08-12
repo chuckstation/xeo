@@ -27,7 +27,7 @@ The resulting APK is written to `app/build/outputs/apk/release/app-release.apk`.
 ```
 xeo/
 ├── app/                       # Android application module (Gradle)
-│   ├── build.gradle           # Version 0.5.2, applicationId org.adars.xeo
+│   ├── build.gradle           # Version 0.5.3, applicationId org.adars.xeo
 │   ├── proguard-rules.pro     # Keeps JNI bridge symbols
 │   └── src/main/
 │       ├── AndroidManifest.xml
