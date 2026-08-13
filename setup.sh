@@ -42,6 +42,20 @@ if [[ -d "${REPO}/patches" ]]; then
   fi
 fi
 
+if [[ -f "${UPSTREAM}/xenia-build" ]]; then
+  echo "Patching obsolete --canonicalize-ids flag out of xenia-build..."
+  # Use portable sed logic to remove the line with --canonicalize-ids
+  if grep -q "canonicalize-ids" "${UPSTREAM}/xenia-build"; then
+    sed -i '/canonicalize-ids/d' "${UPSTREAM}/xenia-build"
+  fi
+fi
+if [[ -f "${UPSTREAM}/xenia-build.py" ]]; then
+  echo "Patching obsolete --canonicalize-ids flag out of xenia-build.py..."
+  if grep -q "canonicalize-ids" "${UPSTREAM}/xenia-build.py"; then
+    sed -i '/canonicalize-ids/d' "${UPSTREAM}/xenia-build.py"
+  fi
+fi
+
 for target in src third_party; do
   link="${REPO}/${target}"
   src="xenia-upstream/${target}"

@@ -5,6 +5,21 @@ All notable changes to **Xeo** are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.3] — 2026-08-12
+
+### Versioning
+
+- `versionName`: `0.5.3` (stable).
+- `versionCode`: `6`.
+
+### Added
+
+- GitHub Actions CI workflow to build and verify the release APK on tags and pull requests.
+
+### Fixed
+
+- Handled SPIR-V shader compilation failure due to obsolete `--canonicalize-ids` flag in newer `spirv-opt` environments.
+
 ## [0.5.2] — 2026-08-07
 
 ### Versioning
